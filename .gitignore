@@ -1,0 +1,8 @@
+# Project folders
+.vscode
+.git
+
+# Objects and Executables
+*/*.o
+client
+server

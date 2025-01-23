@@ -1,0 +1,22 @@
+# Variables
+CC = gcc
+CFLAGS = -Wall -g
+
+# Default target
+all: $(OUT)
+
+# Rule to build the output
+$(OUT): $(OBJS)
+	$(CC) $(OBJS) -o ../$(OUT)
+
+# Rule to compile client.c
+$(OBJS): $(SRC)
+	$(CC) $(CFLAGS) -c $(SRC)
+
+# Clean up the generated files
+clean:
+	rm -f $(OBJS) ../$(OUT)
+
+# Target to run the client after building
+run: $(OUT)
+	./$(OUT)
