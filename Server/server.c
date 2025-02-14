@@ -23,7 +23,6 @@ int main (int argc, char** argv)
 
     // CREATE AN ENDPOINT
 
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { 
         perror("socket()"); 
         exit(EXIT_FAILURE); 
