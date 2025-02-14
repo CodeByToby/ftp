@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <wait.h>
+#include <string.h>
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
