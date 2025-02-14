@@ -15,7 +15,6 @@ int main(int argc, char** argv)
 {
     int nSent, nRead;
 
-    int retval;
     int sockfd;
     struct sockaddr_un addr = { AF_UNIX, "/tmp/ftp.sock" };
 
@@ -29,7 +28,7 @@ int main(int argc, char** argv)
 
     // CONNECT TO THE SOCKET
 
-    if ((retval = connect(sockfd, (struct sockaddr*) &addr, sizeof(addr))) < 0) {
+    if (connect(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         perror("connect()");
         exit(EXIT_FAILURE); 
     }

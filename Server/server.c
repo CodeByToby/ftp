@@ -16,7 +16,6 @@ int main (int argc, char** argv)
 {
     int nSent, nRead;
 
-    int status;
     int sockfd,
         sockfd_accpt;
     const struct sockaddr_un addr = { AF_UNIX, "/tmp/ftp.sock" };
@@ -33,18 +32,21 @@ int main (int argc, char** argv)
     struct timeval tv;
     tv.tv_sec = 60;
     tv.tv_usec = 0;
-    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+        perror("setsockopt()"); 
+        exit(EXIT_FAILURE);
+    }
 
     // BIND THE SOCKET TO ADDRESS
 
-    if ((status = bind(sockfd, (struct sockaddr*) &addr, sizeof(addr))) < 0) { 
+    if (bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) { 
         perror("bind()"); 
         exit(EXIT_FAILURE);
     }
 
     // PREPARE TO ACCEPT CONNECTIONS
 
-    if ((status = listen(sockfd, 5)) < 0) { 
+    if (listen(sockfd, 5) < 0) { 
         perror("listen()"); 
         exit(EXIT_FAILURE); 
     }
