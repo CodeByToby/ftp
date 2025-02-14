@@ -5,62 +5,24 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <errno.h>
 #include <wait.h>
+#include <semaphore.h>
 
-#define ADDR_SIZE sizeof(struct sockaddr_un)
-#define MSG_SIZE sizeof(msg_t)
-#define MAX_BUF 1024
-
-typedef struct {
-    int typ; // typ komunikatu
-    int ile; // ile było malych liter
-    int off; // przesunięcie
-    char text[MAX_BUF]; // tekst komunikatu
-} msg_t;
-
-enum MSG_TYPE {
-    MSG_TYPE_ENDCOM = 0,
-    MSG_TYPE_ROPEN,
-    MSG_TYPE_WOPEN,
-    MSG_TYPE_READ,
-    MSG_TYPE_WRITE,
-
-    MSG_TYPE_ENDCOM_ACCEPT = 10,
-    MSG_TYPE_ROPEN_ACCEPT,
-    MSG_TYPE_WOPEN_ACCEPT,
-    MSG_TYPE_READ_ACCEPT,
-    MSG_TYPE_WRITE_ACCEPT,
-
-    MSG_TYPE_ERR = 21
-};
+#include "../Common/exits.h"
+#include "../Common/msg.h"
 
 void connection_loop(int sockfd_accpt);
-static void errexit_if_equals(const int val, const int check_val, const char * errlabel);
-static void errexit_if_smaller(const int val, const int check_val, const char * errlabel);
+
+int /* fd */ PrepareSocket(const struct sockaddr_un *addr);
 
 int main (int argc, char** argv) 
 {
     int status;
     int sockfd,
         sockfd_accpt;
-    struct sockaddr_un addr = { AF_UNIX, "/tmp/zad6.sock" };
-    
-    // CREATE AN ENDPOINT //////////////////////
+    const struct sockaddr_un addr = { AF_UNIX, "/tmp/zad6.sock" };
 
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    errexit_if_equals(sockfd, -1, "socket");
-
-    // BIND THE SOCKET TO ADDRESS //////////////
-    
-    status = bind(sockfd, (struct sockaddr*) &addr, ADDR_SIZE);
-    errexit_if_equals(status, -1, "bind");
-
-    // PREPARE TO ACCEPT CONNECTIONS ///////////
-
-    status = listen(sockfd, 5);
-    errexit_if_equals(status, -1, "listen");
-    printf("Server listening...\n");
+    sockfd = PrepareSocket(&addr);
 
     // SERVER LOOP /////////////////////////////
 
@@ -75,6 +37,27 @@ int main (int argc, char** argv)
     }
 }
 
+int /* fd */ PrepareSocket(const struct sockaddr_un *addr) {
+    int status;
+    int sockfd;
+    
+    // CREATE AN ENDPOINT //////////////////////
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    errexit_if_equals(sockfd, -1, "socket");
+
+    // BIND THE SOCKET TO ADDRESS /////////////
+    status = bind(sockfd, (struct sockaddr*) &addr, ADDR_SIZE);
+    errexit_if_equals(status, -1, "bind");
+
+    // PREPARE TO ACCEPT CONNECTIONS ///////////
+
+    status = listen(sockfd, 5);
+    errexit_if_equals(status, -1, "listen");
+    printf("Server listening...\n");
+    
+    return sockfd;
+}
+
 void connection_loop(int sockfd_accpt)
 {
     printf("%d: Connection accepted.\n", getpid());
@@ -87,8 +70,9 @@ void connection_loop(int sockfd_accpt)
         count = recv(sockfd_accpt, (msg_t*) &packet, MSG_SIZE, 0);
 
         // PACKET TYPE LOGIC ////////////////////////////////////
-
-        if (packet.typ == MSG_TYPE_ENDCOM) {
+        switch (packet.type) 
+        {
+        case MSG_TYPE_ENDCOM:
             printf("%d: Communication terminated. Exiting...\n", getpid());
 
             // Send a response accepting communication end
@@ -97,26 +81,25 @@ void connection_loop(int sockfd_accpt)
             close(sockfd_accpt);
 
             exit(EXIT_SUCCESS);
+        
+        case MSG_TYPE_ROPEN:
+            break;
+        
+        case MSG_TYPE_WOPEN:
+            
+            break;
+        
+        case MSG_TYPE_READ:
+            
+            break;
+        
+        case MSG_TYPE_APPEND:
+            
+            break;
+        
+        case MSG_TYPE_CLOSE:
+            
+            break;
         }
-    }
-}
-
-// Exit if 'val' equals 'check_val'
-//
-static void errexit_if_equals(const int val, const int check_val, const char * errlabel)
-{
-    if (val == check_val) { 
-        perror(errlabel); 
-        exit (EXIT_FAILURE); 
-    }
-}
-
-// Exit if 'val' is smallet than 'check_val'
-//
-static void errexit_if_smaller(const int val, const int check_val, const char * errlabel)
-{
-    if (val < check_val) { 
-        perror(errlabel); 
-        exit (EXIT_FAILURE); 
     }
 }

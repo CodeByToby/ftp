@@ -5,36 +5,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define ADDR_SIZE sizeof(struct sockaddr_un)
-#define MSG_SIZE sizeof(msg_t)
-#define MAX_BUF 1024
+#include "../Common/exits.h"
+#include "../Common/msg.h"
 
-typedef struct {
-    int typ; // typ komunikatu
-    int ile; // ile było malych liter
-    int off; // przesunięcie
-    char text[MAX_BUF]; // tekst komunikatu
-} msg_t;
-
-enum MSG_TYPE {
-    MSG_TYPE_ENDCOM = 0,
-    MSG_TYPE_ROPEN,
-    MSG_TYPE_WOPEN,
-    MSG_TYPE_READ,
-    MSG_TYPE_APPEND,
-    MSG_TYPE_CLOSE,
-
-    MSG_TYPE_ENDCOM_ACCEPT = 10,
-    MSG_TYPE_ROPEN_ACCEPT,
-    MSG_TYPE_WOPEN_ACCEPT,
-    MSG_TYPE_READ_ACCEPT,
-    MSG_TYPE_APPEND_ACCEPT,
-    MSG_TYPE_CLOSE_ACCEPT,
-
-    MSG_TYPE_ERR = 21
-};
-
-static void errexit_if_equals(const int val, const int check_val, const char * errlabel);
 int get_type(void);
 void assign_text(char* buf);
 
@@ -63,8 +36,8 @@ int main (int argc, char** argv)
         // Prepare the message
         memset(&packet, 0, sizeof(packet));  // Clear the structure
 
-        packet.typ = get_type();        
-        if (packet.typ != MSG_TYPE_ENDCOM) assign_text(packet.text);
+        packet.type = get_type();        
+        if (packet.type != MSG_TYPE_ENDCOM) assign_text(packet.text);
 
         // Send and receive the message
         count = send(sockfd, (void*) &packet, MSG_SIZE, 0);        
@@ -72,17 +45,33 @@ int main (int argc, char** argv)
 
         // PACKET TYPE LOGIC ////////////////////////////////////
 
-        if (packet.typ == MSG_TYPE_ENDCOM) {
-            printf("Communication terminated. Exiting...\n");
+        switch (packet.type) {
+            case MSG_TYPE_ENDCOM_ACCEPT:
+                printf("Communication terminated. Exiting...\n");
 
-            close(sockfd);
-            exit(EXIT_SUCCESS);
+                close(sockfd);
+                exit(EXIT_SUCCESS);
+            
+            case MSG_TYPE_ROPEN_ACCEPT:
+                
+                break;
+            
+            case MSG_TYPE_WOPEN_ACCEPT:
+                
+                break;
+            
+            case MSG_TYPE_READ_ACCEPT:
+                
+                break;
+            
+            case MSG_TYPE_APPEND_ACCEPT:
+                
+                break;
+            
+            case MSG_TYPE_CLOSE_ACCEPT:
+                
+                break;
         }
-
-        // Output data
-        printf("\nType: %d\n", packet.typ);
-        printf("Message: %s", packet.text);
-        printf("How many letters changed: %d\n\n\n", packet.ile); 
     }
 }
 
@@ -126,18 +115,9 @@ int get_type(void) {
 }
 
 // Get a string of user-typed characters and assign it to buffer
-//
 void assign_text(char* buf) {
     printf("Type the message: ");
 
     // Read into buf
     fgets(buf, MAX_BUF, stdin);
-}
-
-// Exit if 'val' equals 'check_val'
-//
-static void errexit_if_equals(const int val, const int check_val, const char * errlabel)
-{
-    if (val == check_val)
-        { perror(errlabel), exit (EXIT_FAILURE); }
 }
