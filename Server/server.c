@@ -6,100 +6,154 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <wait.h>
-#include <semaphore.h>
 
-#include "../Common/exits.h"
-#include "../Common/msg.h"
-
-void connection_loop(int sockfd_accpt);
-
-int /* fd */ PrepareSocket(const struct sockaddr_un *addr);
+#include "../Common/packets.h"
+#include "../Common/defines.h"
+#include "handlers.h"
 
 int main (int argc, char** argv) 
 {
+    int nSent, nRead;
+
     int status;
     int sockfd,
         sockfd_accpt;
-    const struct sockaddr_un addr = { AF_UNIX, "/tmp/zad6.sock" };
+    const struct sockaddr_un addr = { AF_UNIX, "/tmp/ftp.sock" };
 
-    sockfd = PrepareSocket(&addr);
+    // CREATE AN ENDPOINT
 
-    // SERVER LOOP /////////////////////////////
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { 
+        perror("socket()"); 
+        exit(EXIT_FAILURE); 
+    }
 
-    while(1) {
-        // accept the connection and create a child process for it
-        sockfd_accpt = accept(sockfd, NULL, NULL);
-        errexit_if_equals(sockfd_accpt, -1, "accept");
+    // DEFINE TIMEOUT FOR SOCKET
+
+    struct timeval tv;
+    tv.tv_sec = 60;
+    tv.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+    // BIND THE SOCKET TO ADDRESS
+
+    if ((status = bind(sockfd, (struct sockaddr*) &addr, sizeof(addr))) < 0) { 
+        perror("bind()"); 
+        exit(EXIT_FAILURE);
+    }
+
+    // PREPARE TO ACCEPT CONNECTIONS
+
+    if ((status = listen(sockfd, 5)) < 0) { 
+        perror("listen()"); 
+        exit(EXIT_FAILURE); 
+    }
+
+    printf("[SERVER] online.\n");
+
+    // SERVER LOOP
+
+    command_t cmd;
+    response_t res;
+
+    while(TRUE) {
+        memset(&cmd, 0, sizeof(cmd));
+        memset(&res, 0, sizeof(res));
+
+        if ((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) { 
+            fprintf(stderr, "<ERR> ");
+            perror("accept()"); 
+
+            exit(EXIT_FAILURE); 
+        }
+
+        // FORK LOOP
 
         if (fork() == 0) {
-            connection_loop(sockfd_accpt);
-        }
-    }
-}
+            while (TRUE) {
+                nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0);
 
-int /* fd */ PrepareSocket(const struct sockaddr_un *addr) {
-    int status;
-    int sockfd;
-    
-    // CREATE AN ENDPOINT //////////////////////
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    errexit_if_equals(sockfd, -1, "socket");
+                if (nRead < 0) {
+                    fprintf(stderr, "<ERR> PID_%d: ", getpid());
+                    perror("recv()");
 
-    // BIND THE SOCKET TO ADDRESS /////////////
-    status = bind(sockfd, (struct sockaddr*) &addr, ADDR_SIZE);
-    errexit_if_equals(status, -1, "bind");
+                    close(sockfd);
+                    exit(EXIT_FAILURE);
+                }
 
-    // PREPARE TO ACCEPT CONNECTIONS ///////////
+                switch (cmd.type) {
+                case LIST:
+                    ftp_list(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] LIST\n", getpid());
+                    break;
 
-    status = listen(sockfd, 5);
-    errexit_if_equals(status, -1, "listen");
-    printf("Server listening...\n");
-    
-    return sockfd;
-}
+                case RETR:
+                    //ftp_retr(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] RETR\n", getpid());
+                    break;
 
-void connection_loop(int sockfd_accpt)
-{
-    printf("%d: Connection accepted.\n", getpid());
+                case STOR:
+                    //ftp_stor(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] STOR\n", getpid());
+                    break;
 
-    int count;
-    msg_t packet;
+                case STOU:
+                    //ftp_stou(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] STOU\n", getpid());
+                    break;
 
-    while (1) {
-        // Receive the message
-        count = recv(sockfd_accpt, (msg_t*) &packet, MSG_SIZE, 0);
+                case APPE:
+                    //ftp_appe(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] APPE\n", getpid());
+                    break;
 
-        // PACKET TYPE LOGIC ////////////////////////////////////
-        switch (packet.type) 
-        {
-        case MSG_TYPE_ENDCOM:
-            printf("%d: Communication terminated. Exiting...\n", getpid());
+                case DELE:
+                    //ftp_dele(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] DELE\n", getpid());
+                    break;
 
-            // Send a response accepting communication end
-            count = send(sockfd_accpt, (void*) &packet, MSG_SIZE, 0);
+                case RMD:
+                    //ftp_rmd(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] RMD\n", getpid());
+                    break;
 
-            close(sockfd_accpt);
+                case MKD:
+                    //ftp_mkd(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] MKD\n", getpid());
+                    break;
 
-            exit(EXIT_SUCCESS);
-        
-        case MSG_TYPE_ROPEN:
-            break;
-        
-        case MSG_TYPE_WOPEN:
-            
-            break;
-        
-        case MSG_TYPE_READ:
-            
-            break;
-        
-        case MSG_TYPE_APPEND:
-            
-            break;
-        
-        case MSG_TYPE_CLOSE:
-            
-            break;
+                case PWD:
+                    //ftp_pwd(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] PWD\n", getpid());
+                    break;
+
+                case CWD:
+                    //ftp_cwd(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] CWD\n", getpid());
+                    break;
+
+                case CDUP:
+                    //ftp_cdup(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] CDUP\n", getpid());
+                    break;
+
+                case NOOP:
+                    ftp_noop(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] NOOP\n", getpid());
+                    break;
+
+                case QUIT:
+                    //ftp_quit(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] QUIT\n", getpid());
+                    break;
+
+                case HELP:
+                default:
+                    //ftp_help(sockfd_accpt, &res);
+                    printf("[CLIENT_%d] HELP\n", getpid());
+                    break;
+                }
+            }
         }
     }
 }

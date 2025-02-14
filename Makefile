@@ -1,14 +1,17 @@
-all: client server
+SERVER_OUT := Server/ftp_server
+CLIENT_OUT := Client/ftp_client
 
-client:
-	@echo "Building the client..."
+all: $(SERVER_OUT) $(CLIENT_OUT)
+
+$(CLIENT_OUT):
+	@echo -e "\n\tBuilding the client...\n"
 	make -C Client
 
-server:
-	@echo "Building the server..."
+$(SERVER_OUT):
+	@echo -e "\n\tBuilding the server...\n"
 	make -C Server
 
 clean:
-	@echo "Cleaning both client and server..."
+	@echo -e "\n\tCleaning both client and server...\n"
 	make -C Client clean
 	make -C Server clean

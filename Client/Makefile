@@ -1,6 +1,18 @@
-# Variables
-OUT = client
-SRC = $(OUT).c
-OBJS = $(OUT).o
+CC = gcc
+CFLAGS = -Wall -g
 
-include ../Common/Makefile.common
+OUT = ftp_client
+SRC = client.c
+OBJS = $(SRC:.c=.o)
+
+all: $(OUT)
+
+$(OUT): $(OBJS)
+	$(CC) $^ -o $@
+	rm -f $^
+
+$(OBJS): $(SRC)
+	$(CC) $(CFLAGS) -c $^
+
+clean:
+	rm -f $(OBJS) $(OUT)
