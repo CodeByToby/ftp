@@ -3,5 +3,5 @@
 .git
 
 # Objects and Executables
-*/*.o
-*/build
+*/build/*
+!/Server/build/passwd

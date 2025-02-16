@@ -104,22 +104,22 @@ int main (int argc, char** argv)
 
             switch (cmd.type) {
             case USER:
-                printf("[CLIENT_%d] USER\n", getpid());
+                printf("[CLIENT_%d] USER %s\n", getpid(), cmd.args);
 
-                ftp_user(&res, &session);
+                ftp_user(&res, &cmd, &session);
                 response_send(sockfd_accpt, &res);
                 break;
             case PASS:
                 printf("[CLIENT_%d] PASS\n", getpid());
 
-                ftp_pass(&res, &session);
+                ftp_pass(&res, &cmd, &session);
                 response_send(sockfd_accpt, &res);
                 break;
 
             case LIST:
                 printf("[CLIENT_%d] LIST\n", getpid());
 
-                ftp_list(&res, &session);
+                ftp_list(&res, &cmd, &session);
                 response_send(sockfd_accpt, &res);
                 break;
 
