@@ -43,9 +43,8 @@ int main(int argc, char** argv)
         memset(&res, 0, sizeof(res));
 
         printf("> ");
-		if(getcommand(&cmd) < 0) {
-            printf("Invalid command. Try again\n");
-			continue;
+		while(getcommand(&cmd) < 0) {
+            printf("Invalid command. Try again\n> ");
         }
 
         // Send command
@@ -77,9 +76,73 @@ int main(int argc, char** argv)
 }
 
 int getcommand(command_t * cmd) {
-    // TODO: Handle user input
-    
-    cmd->type = LIST;
+    char buffer[BUFFER_SIZE + 4]; // +4 to account for type
+    char cmdTypeRaw[4];
+    char *token;
+
+    memset(&buffer, 0, sizeof(buffer));
+    memset(&cmdTypeRaw, 0, sizeof(cmdTypeRaw));
+
+    // GET INPUT
+
+    fgets(buffer, sizeof(buffer), stdin);
+    buffer[strcspn(buffer, "\n")] = 0; // Get rid of newline
+
+    token = strtok(buffer, " ");
+    if (token != NULL) {
+        strncpy(cmdTypeRaw, token, sizeof(cmdTypeRaw));
+    } else { // If no command was provided
+        return -1;
+    }
+
+    token = strtok(NULL, "");
+    if (token != NULL) {
+        strncpy(cmd->args, token, sizeof(cmd->args) - 1);
+        cmd->args[sizeof(cmd->args) - 1] = '\0';
+    } else { // If command was provided without any arguments
+        cmd->args[0] = '\0';
+    }
+
+    // PARSE COMMAND TYPE
+
+    if (strncmp(cmdTypeRaw, "LIST", 4) == 0) {
+        cmd->type = LIST;
+    } else if (strncmp(cmdTypeRaw, "HELP", 4) == 0) {
+        cmd->type = HELP;
+    } else if (strncmp(cmdTypeRaw, "RETR", 4) == 0) {
+        cmd->type = RETR;
+    } else if (strncmp(cmdTypeRaw, "STOR", 4) == 0) {
+        cmd->type = STOR;
+    } else if (strncmp(cmdTypeRaw, "STOU", 4) == 0) {
+        cmd->type = STOU;
+    } else if (strncmp(cmdTypeRaw, "APPE", 4) == 0) {
+        cmd->type = APPE;
+    } else if (strncmp(cmdTypeRaw, "DELE", 4) == 0) {
+        cmd->type = DELE;
+    } else if (strncmp(cmdTypeRaw, "RMD", 3) == 0) {
+        cmd->type = RMD;
+    } else if (strncmp(cmdTypeRaw, "MKD", 3) == 0) {
+        cmd->type = MKD;
+    } else if (strncmp(cmdTypeRaw, "PWD", 3) == 0) {
+        cmd->type = PWD;
+    } else if (strncmp(cmdTypeRaw, "CWD", 3) == 0) {
+        cmd->type = CWD;
+    } else if (strncmp(cmdTypeRaw, "CDUP", 4) == 0) {
+        cmd->type = CDUP;
+    } else if (strncmp(cmdTypeRaw, "PASS", 4) == 0) {
+        cmd->type = PASS;
+    } else if (strncmp(cmdTypeRaw, "USER", 4) == 0) {
+        cmd->type = USER;
+    } else if (strncmp(cmdTypeRaw, "NOOP", 4) == 0) {
+        cmd->type = NOOP;
+    } else if (strncmp(cmdTypeRaw, "QUIT", 4) == 0) {
+        cmd->type = QUIT;
+    } else {
+        return -1;
+    }
+
+    //printf("Type: %d\n", cmd->type);
+    //printf("Arguments: %s\n", cmd->args);
 
     return 0;
 }
