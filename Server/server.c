@@ -12,11 +12,11 @@
 #include "../Common/defines.h"
 #include "handlers.h"
 
-int response_send (int sockfd, response_t * res);
+int response_send(int sockfd, response_t * res);
 
-int main (int argc, char** argv) 
+int main(int argc, char** argv) 
 {
-    int nSent, nRead;
+    int nRead;
     int retval;
     int sockfd,
         sockfd_accpt;
@@ -29,10 +29,10 @@ int main (int argc, char** argv)
         exit(EXIT_FAILURE); 
     }
 
-    // DEFINE TIMEOUT FOR SOCKET
+    // DEFINE TIMEOUT FOR MAIN SOCKET
 
     struct timeval tv;
-    tv.tv_sec = 60;
+    tv.tv_sec = 360;
     tv.tv_usec = 0;
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         perror("setsockopt()"); 
@@ -64,11 +64,23 @@ int main (int argc, char** argv)
         memset(&cmd, 0, sizeof(cmd));
         memset(&res, 0, sizeof(res));
 
+        // ACCEPT SOCKET
+
         if ((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) { 
             fprintf(stderr, "<ERR> ");
             perror("accept()"); 
 
             exit(EXIT_FAILURE); 
+        }
+
+        // DEFINE TIMEOUT FOR ACCEPT SOCKET
+
+        struct timeval tv;
+        tv.tv_sec = 30;
+        tv.tv_usec = 0;
+        if (setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+            perror("setsockopt()"); 
+            exit(EXIT_FAILURE);
         }
 
         // FORK IN THE ROAD
@@ -104,15 +116,25 @@ int main (int argc, char** argv)
 
             switch (cmd.type) {
             case USER:
-                printf("[CLIENT_%d] USER %s\n", getpid(), cmd.args);
+                printf("[CLIENT_%d] USER %s ", getpid(), cmd.args);
 
-                ftp_user(&res, &cmd, &session);
+                if (ftp_user(&res, &cmd, &session) == 0)
+                    printf("(success)\n");
+                else
+                    printf("(failure)\n");
+                
                 response_send(sockfd_accpt, &res);
-                break;
-            case PASS:
-                printf("[CLIENT_%d] PASS\n", getpid());
 
-                ftp_pass(&res, &cmd, &session);
+                break;
+                
+            case PASS:
+                printf("[CLIENT_%d] PASS ", getpid());
+
+                if (ftp_pass(&res, &cmd, &session) == 0)
+                    printf("(success)\n");
+                else
+                    printf("(failure)\n");
+            
                 response_send(sockfd_accpt, &res);
                 break;
 
@@ -222,7 +244,7 @@ int main (int argc, char** argv)
     }
 }
 
-int response_send (int sockfd, response_t * res)
+int response_send(int sockfd, response_t * res)
 {    
     int nSent;
 
@@ -234,5 +256,7 @@ int response_send (int sockfd, response_t * res)
 
         close(sockfd);
         exit(EXIT_FAILURE);
-    }  
+    }
+
+    return 0;
 }
