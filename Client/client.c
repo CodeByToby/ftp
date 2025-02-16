@@ -71,7 +71,12 @@ int main(int argc, char** argv)
 
         // TODO: Print reply
         printf("%d, %s\n", res.code, res.message);
-        usleep(1000000);
+
+        // Quit
+        if (res.code == 221) {
+            close(sockfd);
+            exit(EXIT_SUCCESS);
+        }
     }
 }
 

@@ -58,3 +58,10 @@ int ftp_user(response_t * res, user_session_t * session) {
 
     return 0;
 }
+
+int ftp_quit(response_t * res) {
+    res->code = 221;
+    strncpy(res->message, "Service closing control connection", BUFFER_SIZE);
+
+    return 0;
+}

@@ -31,11 +31,11 @@ enum COMMAND_TYPE {
     CWD,    /* Change working directory */
     CDUP,   /* Change to root directory */
 
-    PASS,
-    USER,
+    PASS,   /* Provide server with password */
+    USER,   /* Provide server with username */
 
-    NOOP,
-    QUIT
+    NOOP,   /* No operation */
+    QUIT    /* Terminate the connection for this client */
 };
 
 #endif

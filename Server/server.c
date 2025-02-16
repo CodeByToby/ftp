@@ -204,9 +204,11 @@ int main (int argc, char** argv)
             case QUIT:
                 printf("[CLIENT_%d] QUIT\n", getpid());
 
-                //ftp_quit(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
+                ftp_quit(&res);
+                response_send(sockfd_accpt, &res);
+                
+                close(sockfd_accpt);
+                exit(EXIT_SUCCESS);
 
             case HELP:
             default:
