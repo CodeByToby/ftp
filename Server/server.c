@@ -71,7 +71,7 @@ int main (int argc, char** argv)
             exit(EXIT_FAILURE); 
         }
 
-        // FORK LOOP
+        // FORK IN THE ROAD
 
         retval = fork();
 
@@ -83,6 +83,13 @@ int main (int argc, char** argv)
         } else if (retval > 0) {
             continue;
         }
+
+        // CLIENT-SPECIFIC SESSION
+
+        user_session_t session;
+
+        memset(&session, 0, sizeof(session));
+        session.state = LOGGED_OUT;
 
         while (TRUE) {
             nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0);
@@ -96,10 +103,23 @@ int main (int argc, char** argv)
             }
 
             switch (cmd.type) {
+            case USER:
+                printf("[CLIENT_%d] USER\n", getpid());
+
+                ftp_user(&res, &session);
+                response_send(sockfd_accpt, &res);
+                break;
+            case PASS:
+                printf("[CLIENT_%d] PASS\n", getpid());
+
+                ftp_pass(&res, &session);
+                response_send(sockfd_accpt, &res);
+                break;
+
             case LIST:
                 printf("[CLIENT_%d] LIST\n", getpid());
 
-                ftp_list(&res);
+                ftp_list(&res, &session);
                 response_send(sockfd_accpt, &res);
                 break;
 
