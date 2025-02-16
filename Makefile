@@ -1,5 +1,5 @@
-SERVER_OUT := Server/ftp_server
-CLIENT_OUT := Client/ftp_client
+SERVER_OUT := Server/build/server
+CLIENT_OUT := Client/build/client
 
 all: $(SERVER_OUT) $(CLIENT_OUT)
 

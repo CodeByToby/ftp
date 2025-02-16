@@ -8,6 +8,7 @@
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
+#include "../Common/trim.h"
 
 int getcommand(command_t * cmd);
 
@@ -96,6 +97,8 @@ int getcommand(command_t * cmd) {
     token = strtok(buffer, " ");
     if (token != NULL) {
         strncpy(cmdTypeRaw, token, sizeof(cmdTypeRaw));
+        
+        ltrim(cmdTypeRaw);
     } else { // If no command was provided
         return -1;
     }
@@ -104,6 +107,8 @@ int getcommand(command_t * cmd) {
     if (token != NULL) {
         strncpy(cmd->args, token, sizeof(cmd->args) - 1);
         cmd->args[sizeof(cmd->args) - 1] = '\0';
+        
+        ltrim(cmd->args);
     } else { // If command was provided without any arguments
         cmd->args[0] = '\0';
     }

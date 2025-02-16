@@ -4,5 +4,4 @@
 
 # Objects and Executables
 */*.o
-Client/ftp_client
-Server/ftp_server
+*/build
