@@ -4,19 +4,19 @@
 #include "../Common/packets.h"
 #include "../Common/defines.h"
 
-int ftp_list(int sockfd_accpt, response_t * res);
-//int ftp_retr(int sockfd_accpt, response_t * res);
-//int ftp_stor(int sockfd_accpt, response_t * res);
-//int ftp_stou(int sockfd_accpt, response_t * res);
-//int ftp_appe(int sockfd_accpt, response_t * res);
-//int ftp_dele(int sockfd_accpt, response_t * res);
-//int ftp_rmd(int sockfd_accpt, response_t * res);
-//int ftp_mkd(int sockfd_accpt, response_t * res);
-//int ftp_pwd(int sockfd_accpt, response_t * res);
-//int ftp_cwd(int sockfd_accpt, response_t * res);
-//int ftp_cdup(int sockfd_accpt, response_t * res);
-int ftp_noop(int sockfd_accpt, response_t * res);
-//int ftp_quit(int sockfd_accpt, response_t * res);
-//int ftp_help(int sockfd_accpt, response_t * res);
+int ftp_list(response_t * res);
+int ftp_retr(response_t * res);
+int ftp_stor(response_t * res);
+int ftp_stou(response_t * res);
+int ftp_appe(response_t * res);
+int ftp_dele(response_t * res);
+int ftp_rmd(response_t * res);
+int ftp_mkd(response_t * res);
+int ftp_pwd(response_t * res);
+int ftp_cwd(response_t * res);
+int ftp_cdup(response_t * res);
+int ftp_noop(response_t * res);
+int ftp_quit(response_t * res);
+int ftp_help(response_t * res);
 
 #endif
