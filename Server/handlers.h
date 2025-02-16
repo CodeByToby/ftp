@@ -18,5 +18,7 @@ int ftp_cdup(response_t * res);
 int ftp_noop(response_t * res);
 int ftp_quit(response_t * res);
 int ftp_help(response_t * res);
+int ftp_pass(response_t * res);
+int ftp_user(response_t * res);
 
 #endif

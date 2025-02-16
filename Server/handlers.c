@@ -24,3 +24,17 @@ int ftp_noop(response_t * res) {
 
     return 0;
 }
+
+int ftp_pass(response_t * res) {
+    res->code = 502;
+    strncpy(res->message, "Command not yet implemented", BUFFER_SIZE);
+
+    return 0;
+}
+
+int ftp_user(response_t * res) {
+    res->code = 502;
+    strncpy(res->message, "Command not yet implemented", BUFFER_SIZE);
+
+    return 0;
+}
