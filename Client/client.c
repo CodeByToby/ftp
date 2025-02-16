@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -94,6 +95,7 @@ int getcommand(command_t * cmd) {
     fgets(buffer, sizeof(buffer), stdin);
     buffer[strcspn(buffer, "\n")] = 0; // Get rid of newline
 
+    // ... Type
     token = strtok(buffer, " ");
     if (token != NULL) {
         strncpy(cmdTypeRaw, token, sizeof(cmdTypeRaw));
@@ -103,6 +105,11 @@ int getcommand(command_t * cmd) {
         return -1;
     }
 
+    for (int i = 0; i < sizeof(cmdTypeRaw); ++i) {
+        cmdTypeRaw[i] = toupper(cmdTypeRaw[i]);
+    }
+
+    // ... Args
     token = strtok(NULL, "");
     if (token != NULL) {
         strncpy(cmd->args, token, sizeof(cmd->args) - 1);
