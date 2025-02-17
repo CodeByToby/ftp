@@ -75,7 +75,7 @@ int main(int argc, char** argv)
         printf("%d, %s\n", res.code, res.message);
 
         // Quit
-        if (res.code == 221) {
+        if (res.code == 221 || res.code == 421) {
             close(sockfd);
             exit(EXIT_SUCCESS);
         }

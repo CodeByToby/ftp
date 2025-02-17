@@ -5,8 +5,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <wait.h>
 #include <string.h>
+#include <sys/stat.h> // mkdir
+#include <errno.h> // errno
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -51,6 +52,13 @@ int main(int argc, char** argv)
     if (listen(sockfd, 5) < 0) { 
         perror("listen()"); 
         exit(EXIT_FAILURE); 
+    }
+
+    // MAKE A HOME DIRECTORY FOR CLIENTS
+
+    if(mkdir("home", 0700) && errno != EEXIST) {
+        perror("mkdir()");
+        exit(EXIT_FAILURE);
     }
 
     printf("[SERVER] online.\n");
@@ -109,6 +117,11 @@ int main(int argc, char** argv)
             if (nRead < 0) {
                 fprintf(stderr, "<ERR> PID_%d: ", getpid());
                 perror("recv()");
+
+                // TODO: Use existing function set_res? Put same logic in SIGINT handler?
+                res.code = 421;
+                strncpy(res.message, "Service not available, closing control connection", BUFFER_SIZE);
+                send(sockfd_accpt, (void*) &res, sizeof(response_t), 0);
 
                 close(sockfd_accpt);
                 exit(EXIT_FAILURE);

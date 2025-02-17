@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h> // mkdir
+#include <errno.h> // errno
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -19,22 +21,23 @@ static int validate(const char * validStr, const char * str) {
             validStrLen == strlen(str))? TRUE : FALSE;
 }
 
+static void set_res(response_t * res, const int code, const char * message) {
+    res->code = code;
+    strncpy(res->message, message, BUFFER_SIZE);
+}
+
 int ftp_list(response_t * res, const command_t * cmd, const user_session_t * session) {
     if (session->state != LOGGED_IN) {
-        res->code = 530;
-        strncpy(res->message, "User not logged in", BUFFER_SIZE);
-    } else {
-        res->code = 502;
-        strncpy(res->message, "Command not yet implemented", BUFFER_SIZE);
+        set_res(res, 530, "User not logged in");
+        return -1;  
     }
 
+    set_res(res, 502, "Command not yet implemented");
     return 0;
 }
 
 int ftp_noop(response_t * res) {
-    res->code = 200;
-    strncpy(res->message, "Command okay", BUFFER_SIZE);
-
+    set_res(res, 200, "Command okay");
     return 0;
 }
 
@@ -44,29 +47,19 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
     
     short int isValid = FALSE;
 
-    // If user attempts to log as another user
-    if (session->state == LOGGED_IN) {
-        res->code = 230;
-        strncpy(res->message, "User logged in", BUFFER_SIZE);
-
-        return -1;
-    }
-
-    // If the user has not provided a login yet
-    if (session->state == LOGGED_OUT) {
-        res->code = 332;
-        strncpy(res->message, "Need account for login.", BUFFER_SIZE); 
-
+    if (session->state != NEEDS_PASSWORD) {
+        set_res(res, 530, 
+            (session->state == LOGGED_IN)? 
+                "Session already active" : 
+                "User not logged in"
+        );
         return -1;
     }
 
     fp = fopen(CREDENTIALS_FILE, "r");
 
-        // If file did not open for any reason
         if (fp == NULL) {
-            res->code = 504;
-            strncpy(res->message, "Command not implemented for that parameter", BUFFER_SIZE); 
-
+            set_res(res, 550, "Requested action not taken. System issue");
             return -1;  
         }
 
@@ -75,9 +68,8 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
             char * validName = strtok(buffer, ":");
             isValid = validate(validName, session->username);
 
-            if (isValid == FALSE) {
+            if (isValid == FALSE)
                 continue;
-            }
 
             char * validPass = strtok(NULL, ":");
             isValid = validate(validPass, cmd->args);
@@ -85,23 +77,27 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
 
     fclose(fp);
 
-    if (isValid == TRUE) {
-        session->state = LOGGED_IN;
-        strncpy(session->path, strtok(NULL, ""), BUFFER_SIZE); 
-
-        res->code = 230;
-        strncpy(res->message, "User logged in", BUFFER_SIZE);
-
-        return 0;
-    } else {
+    if (isValid == FALSE) {
         session->state = NEEDS_PASSWORD;
 
-        res->code = 530;
-        strncpy(res->message, "User not logged in", BUFFER_SIZE);
-
+        set_res(res, 530, "User not logged in");
         return -1;
     }
 
+    session->state = LOGGED_IN;
+    strncpy(session->path, strtok(NULL, ""), BUFFER_SIZE); 
+
+    // Create a home directory for user
+    if(mkdir(session->path, 0700) && errno != EEXIST) {
+        fprintf(stderr, "<ERR> PID_%d: ", getpid());
+        perror("mkdir()");
+
+        set_res(res, 550, "Requested action not taken. System issue");
+        return -1;
+    }
+
+    set_res(res, 230, "User logged in");
+    return 0;
 }
 
 int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) {
@@ -110,21 +106,15 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
     
     short int isValid = FALSE;
 
-    // If user attempts to log as another user
     if (session->state == LOGGED_IN) {
-        res->code = 230;
-        strncpy(res->message, "User logged in", BUFFER_SIZE);
-
+        set_res(res, 530, "Session already active");
         return -1;
     }
 
     fp = fopen(CREDENTIALS_FILE, "r");
 
-        // If file did not open for any reason
         if (fp == NULL) {
-            res->code = 504;
-            strncpy(res->message, "Command not implemented for that parameter", BUFFER_SIZE); 
-
+            set_res(res, 550, "Requested action not taken. System issue");
             return -1;  
         }
 
@@ -136,28 +126,22 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
 
     fclose(fp);
 
-    if (isValid == TRUE) {
-        session->state = NEEDS_PASSWORD;
-        strncpy(session->username, cmd->args, BUFFER_SIZE);
-
-        res->code = 331;
-        strncpy(res->message, "User name okay, need password", BUFFER_SIZE);
-
-        return 0;
-    } else {
+    if (isValid == FALSE) {
         session->state = LOGGED_OUT;
         memset(res->message, 0, BUFFER_SIZE);
 
-        res->code = 530;
-        strncpy(res->message, "User not logged in", BUFFER_SIZE);   
-    
+        set_res(res, 550, "User not logged in");
         return -1;
-    } 
+    }
+
+    session->state = NEEDS_PASSWORD;
+    strncpy(session->username, cmd->args, BUFFER_SIZE);
+
+    set_res(res, 331, "User name okay, need password");
+    return 0;
 }
 
 int ftp_quit(response_t * res) {
-    res->code = 221;
-    strncpy(res->message, "Service closing control connection", BUFFER_SIZE);
-
+    set_res(res, 221, "Service closing control connection");
     return 0;
 }
