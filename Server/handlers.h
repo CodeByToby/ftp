@@ -21,5 +21,6 @@ int ftp_noop(response_t * res);
 int ftp_quit(response_t * res);
 int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session);
 int ftp_user(response_t * res, const command_t * cmd, user_session_t * session);
+int ftp_help(response_t * res, const command_t * cmd);
 
 #endif

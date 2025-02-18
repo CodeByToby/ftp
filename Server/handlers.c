@@ -11,6 +11,7 @@
 #include "../Common/packets.h"
 #include "../Common/defines.h"
 #include "handlers.h"
+#include "tstamp.h"
 
 #define CREDENTIALS_FILE "passwd"
 
@@ -47,7 +48,7 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
     
     short int isValid = FALSE;
 
-    if (session->state != NEEDS_PASSWORD) {
+    if(session->state != NEEDS_PASSWORD) {
         response_set(res, 530, 
             (session->state == LOGGED_IN)? 
                 "Session already active" : 
@@ -56,12 +57,14 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
         return -1;
     }
 
-    fp = fopen(CREDENTIALS_FILE, "r");
+    if((fp = fopen(CREDENTIALS_FILE, "r")) == NULL) {
+        tstamp(stderr);
+        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
+        perror("fopen()"); 
 
-        if (fp == NULL) {
-            response_set(res, 550, "Requested action not taken. System issue");
-            return -1;  
-        }
+        response_set(res, 550, "Requested action not taken. System issue");
+        return -1;  
+    }
 
         // Check credentials for the user
         while (isValid == FALSE && fgets(buffer, BUFFER_SIZE, fp) != NULL) {
@@ -77,7 +80,7 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
 
     fclose(fp);
 
-    if (isValid == FALSE) {
+    if(isValid == FALSE) {
         session->state = NEEDS_PASSWORD;
 
         response_set(res, 530, "User not logged in");
@@ -89,8 +92,9 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
 
     // Create a home directory for user
     if(mkdir(session->path, 0700) && errno != EEXIST) {
-        fprintf(stderr, "<ERR> PID_%d: ", getpid());
-        perror("mkdir()");
+        tstamp(stderr);
+        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
+        perror("mkdir()"); 
 
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;
@@ -106,17 +110,19 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
     
     short int isValid = FALSE;
 
-    if (session->state == LOGGED_IN) {
+    if(session->state == LOGGED_IN) {
         response_set(res, 530, "Session already active");
         return -1;
     }
 
-    fp = fopen(CREDENTIALS_FILE, "r");
+    if((fp = fopen(CREDENTIALS_FILE, "r")) == NULL) {
+        tstamp(stderr);
+        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
+        perror("fopen()"); 
 
-        if (fp == NULL) {
-            response_set(res, 550, "Requested action not taken. System issue");
-            return -1;  
-        }
+        response_set(res, 550, "Requested action not taken. System issue");
+        return -1;  
+    }
 
         // Check the validity of the username
         while (isValid == FALSE && fgets(buffer, BUFFER_SIZE, fp) != NULL) {
@@ -126,7 +132,7 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
 
     fclose(fp);
 
-    if (isValid == FALSE) {
+    if(isValid == FALSE) {
         session->state = LOGGED_OUT;
         memset(res->message, 0, BUFFER_SIZE);
 
@@ -143,5 +149,16 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
 
 int ftp_quit(response_t * res) {
     response_set(res, 221, "Service closing control connection");
+    return 0;
+}
+
+int ftp_help(response_t * res, const command_t * cmd) {
+    if (cmd->args[0] != '\0') {
+        // TODO: per-command help response?
+        response_set(res, 504, "Command not implemented for that parameter");
+        return -1;
+    }
+
+    response_set(res, 214, "Commands supported:\n\tNOOP\tQUIT\tHELP\n\tPASS\tUSER\n");
     return 0;
 }

@@ -11,6 +11,7 @@
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
+#include "tstamp.h"
 #include "handlers.h"
 
 static int response_send(int sockfd, response_t * res);
@@ -61,7 +62,8 @@ int main(int argc, char** argv)
         exit(EXIT_FAILURE);
     }
 
-    printf("[SERVER] online.\n");
+    tstamp(stdout);
+    printf(" - [SERVER / INFO] - Online\n");
 
     // SERVER LOOP
 
@@ -74,21 +76,12 @@ int main(int argc, char** argv)
 
         // ACCEPT SOCKET
 
-        if ((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) { 
-            fprintf(stderr, "<ERR> ");
+        if ((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) {
+            tstamp(stderr);
+            fprintf(stderr, " - [SERVER / ERRO] - ");
             perror("accept()"); 
 
             exit(EXIT_FAILURE); 
-        }
-
-        // DEFINE TIMEOUT FOR ACCEPT SOCKET
-
-        struct timeval tv;
-        tv.tv_sec = 30;
-        tv.tv_usec = 0;
-        if (setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
-            perror("setsockopt()"); 
-            exit(EXIT_FAILURE);
         }
 
         // FORK IN THE ROAD
@@ -104,6 +97,19 @@ int main(int argc, char** argv)
             continue;
         }
 
+        // DEFINE TIMEOUT FOR ACCEPT SOCKET
+
+        struct timeval tv;
+        tv.tv_sec = 30;
+        tv.tv_usec = 0;
+        if (setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+            tstamp(stderr);
+            fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
+            perror("setsockopt()"); 
+
+            exit(EXIT_FAILURE); 
+        }
+
         // CLIENT-SPECIFIC SESSION
 
         user_session_t session;
@@ -115,8 +121,9 @@ int main(int argc, char** argv)
             nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0);
 
             if (nRead < 0) {
-                fprintf(stderr, "<ERR> PID_%d: ", getpid());
-                perror("recv()");
+                tstamp(stderr);
+                fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
+                perror("recv()"); 
 
                 // TODO: Use existing function response_set? Put same logic in SIGINT handler?
                 res.code = 421;
@@ -129,117 +136,63 @@ int main(int argc, char** argv)
 
             switch (cmd.type) {
             case USER:
-                printf("[CLIENT_%d] USER %s ", getpid(), cmd.args);
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - USER command received: USER %s\n", getpid(), cmd.args);
 
-                if (ftp_user(&res, &cmd, &session) == 0)
-                    printf("(success)\n");
-                else
-                    printf("(failure)\n");
+                ftp_user(&res, &cmd, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
                 
                 response_send(sockfd_accpt, &res);
 
                 break;
                 
             case PASS:
-                printf("[CLIENT_%d] PASS ", getpid());
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - PASS command received\n", getpid());
+                
+                ftp_pass(&res, &cmd, &session);
 
-                if (ftp_pass(&res, &cmd, &session) == 0)
-                    printf("(success)\n");
-                else
-                    printf("(failure)\n");
-            
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
                 response_send(sockfd_accpt, &res);
                 break;
 
             case LIST:
-                printf("[CLIENT_%d] LIST\n", getpid());
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - PASS command received: LIST %s\n", getpid(), cmd.args);
 
                 ftp_list(&res, &cmd, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
                 response_send(sockfd_accpt, &res);
                 break;
 
-            case RETR:
-                printf("[CLIENT_%d] RETR\n", getpid());
-
-                //ftp_retr(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case STOR:
-                printf("[CLIENT_%d] STOR\n", getpid());
-
-                //ftp_stor(&res);
-                //response_send(sockfd_accpt, &res);
-
-                break;
-
-            case STOU:
-                printf("[CLIENT_%d] STOU\n", getpid());
-
-                //ftp_stou(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case APPE:
-                printf("[CLIENT_%d] APPE\n", getpid());
-
-                //ftp_appe(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case DELE:
-                printf("[CLIENT_%d] DELE\n", getpid());
-
-                //ftp_dele(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case RMD:
-                printf("[CLIENT_%d] RMD\n", getpid());
-
-                //ftp_rmd(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case MKD:
-                printf("[CLIENT_%d] MKD\n", getpid());
-
-                //ftp_mkd(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case PWD:
-                printf("[CLIENT_%d] PWD\n", getpid());
-
-                //ftp_pwd(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case CWD:
-                printf("[CLIENT_%d] CWD\n", getpid());
-
-                //ftp_cwd(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
-            case CDUP:
-                printf("[CLIENT_%d] CDUP\n", getpid());
-
-                //ftp_cdup(&res);
-                //response_send(sockfd_accpt, &res);
-                break;
-
             case NOOP:
-                printf("[CLIENT_%d] NOOP\n", getpid());
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - NOOP command received: NOOP\n", getpid());
 
                 ftp_noop(&res);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
                 response_send(sockfd_accpt, &res);
                 break;
 
             case QUIT:
-                printf("[CLIENT_%d] QUIT\n", getpid());
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - QUIT command received: QUIT\n", getpid());
 
                 ftp_quit(&res);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
                 response_send(sockfd_accpt, &res);
                 
                 close(sockfd_accpt);
@@ -247,10 +200,15 @@ int main(int argc, char** argv)
 
             case HELP:
             default:
-                printf("[CLIENT_%d] HELP\n", getpid());
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - HELP command received: HELP %s\n", getpid(), cmd.args);
+                
+                ftp_help(&res, &cmd);
+                
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d\n", getpid(), res.code);
 
-                //ftp_help(&res);
-                //response_send(sockfd_accpt, &res);
+                response_send(sockfd_accpt, &res);
                 break;
             }
         }
@@ -259,12 +217,11 @@ int main(int argc, char** argv)
 
 static int response_send(int sockfd, response_t * res)
 {    
-    int nSent;
-
-    nSent = send(sockfd, (void*) res, sizeof(response_t), 0);
+    int nSent = send(sockfd, (void*) res, sizeof(response_t), 0);
 
     if (nSent < 0 || nSent != sizeof(response_t)) {
-        fprintf(stderr, "[CLIENT_%d] ", getpid());
+        tstamp(stderr);
+        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
         perror("send()");
 
         close(sockfd);
