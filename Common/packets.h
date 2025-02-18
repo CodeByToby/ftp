@@ -29,7 +29,7 @@ enum COMMAND_TYPE {
     MKD,    /* Make new directory on server */
     PWD,    /* Print working directory */
     CWD,    /* Change working directory */
-    CDUP,   /* Change to root directory */
+    CDUP,   /* Change to parent directory */
 
     PASS,   /* Provide server with password */
     USER,   /* Provide server with username */

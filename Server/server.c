@@ -198,7 +198,7 @@ int main(int argc, char** argv)
 
             case PWD:
                 tstamp(stdout);
-                printf(" - [CLIENT_%d / COMM] - MKD command received: MKD\n", getpid());
+                printf(" - [CLIENT_%d / COMM] - PWD command received: PWD\n", getpid());
 
                 ftp_pwd(&res, &session);
 
@@ -224,7 +224,8 @@ int main(int argc, char** argv)
                 tstamp(stdout);
                 printf(" - [CLIENT_%d / COMM] - CDUP command received: CDUP\n", getpid());
 
-                ftp_cdup(&res, &session);
+                strncpy(cmd.args, "..", 3);
+                ftp_cwd(&res, &cmd, &session);
 
                 tstamp(stdout);
                 printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
