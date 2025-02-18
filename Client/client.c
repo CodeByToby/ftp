@@ -11,7 +11,7 @@
 #include "../Common/defines.h"
 #include "../Common/trim.h"
 
-int getcommand(command_t * cmd);
+static int command_get(command_t * cmd);
 
 int main(int argc, char** argv)
 {
@@ -45,7 +45,7 @@ int main(int argc, char** argv)
         memset(&res, 0, sizeof(res));
 
         printf("> ");
-		while(getcommand(&cmd) < 0) {
+		while(command_get(&cmd) < 0) {
             printf("Invalid command. Try again\n> ");
         }
 
@@ -82,7 +82,7 @@ int main(int argc, char** argv)
     }
 }
 
-int getcommand(command_t * cmd) {
+static int command_get(command_t * cmd) {
     char buffer[BUFFER_SIZE + 4]; // +4 to account for type
     char cmdTypeRaw[4];
     char *token;
@@ -93,15 +93,13 @@ int getcommand(command_t * cmd) {
     // GET INPUT
 
     fgets(buffer, sizeof(buffer), stdin);
-    buffer[strcspn(buffer, "\n")] = 0; // Get rid of newline
 
     // ... Type
     token = strtok(buffer, " ");
     if (token != NULL) {
+        trim(token);
         strncpy(cmdTypeRaw, token, sizeof(cmdTypeRaw));
-        
-        ltrim(cmdTypeRaw);
-    } else { // If no command was provided
+    } else {
         return -1;
     }
 
@@ -110,13 +108,11 @@ int getcommand(command_t * cmd) {
     }
 
     // ... Args
-    token = strtok(NULL, "");
+    token = strtok(NULL, "\n");
     if (token != NULL) {
-        strncpy(cmd->args, token, sizeof(cmd->args) - 1);
-        cmd->args[sizeof(cmd->args) - 1] = '\0';
-        
-        ltrim(cmd->args);
-    } else { // If command was provided without any arguments
+        trim(token);
+        strncpy(cmd->args, token, sizeof(cmd->args));
+    } else {
         cmd->args[0] = '\0';
     }
 

@@ -1,18 +1,23 @@
-#include <string.h> // strspn()
+#include <ctype.h> // isspace
+#include <string.h> // strlen
 
 #include "trim.h"
 
-void ltrim(char * str) {
-    const char spaces[7] = " \t\n\v\f\r";
-    const int initialSpacesLen = strspn(str, spaces);
+void trim(char * str) {
+    int start = 0;
+    int end = strlen(str) - 1;
 
-    // Shift available content to left
-    int i = 0;
-    while(str[i + initialSpacesLen] != '\0') {
-        str[i] = str[i + initialSpacesLen];
-        i++;
-    }
+    while(isspace((unsigned char) str[start]))
+        start++;
+
+    while((end >= start) && isspace((unsigned char) str[end]))
+        end--;
+
+    // Shift available content to the left
+    int i;
+    for(i = start; i <= end; ++i)
+        str[i - start] = str[i];
 
     // Null terminate to cut off remainder of string
-    str[i] = '\0';
-}
+    str[i - start] = '\0';
+} 

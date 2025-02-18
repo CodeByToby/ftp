@@ -13,7 +13,7 @@
 #include "../Common/defines.h"
 #include "handlers.h"
 
-int response_send(int sockfd, response_t * res);
+static int response_send(int sockfd, response_t * res);
 
 int main(int argc, char** argv) 
 {
@@ -118,7 +118,7 @@ int main(int argc, char** argv)
                 fprintf(stderr, "<ERR> PID_%d: ", getpid());
                 perror("recv()");
 
-                // TODO: Use existing function set_res? Put same logic in SIGINT handler?
+                // TODO: Use existing function response_set? Put same logic in SIGINT handler?
                 res.code = 421;
                 strncpy(res.message, "Service not available, closing control connection", BUFFER_SIZE);
                 send(sockfd_accpt, (void*) &res, sizeof(response_t), 0);
@@ -257,7 +257,7 @@ int main(int argc, char** argv)
     }
 }
 
-int response_send(int sockfd, response_t * res)
+static int response_send(int sockfd, response_t * res)
 {    
     int nSent;
 
