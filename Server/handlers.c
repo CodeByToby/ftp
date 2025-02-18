@@ -37,6 +37,56 @@ int ftp_list(response_t * res, const command_t * cmd, const user_session_t * ses
     return 0;
 }
 
+int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;  
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+    return 0;
+}
+
+int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;  
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+    return 0;
+}
+
+int ftp_pwd(response_t * res, const user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;  
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+    return 0;   
+}
+
+int ftp_cwd(response_t * res, const command_t * cmd, const user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;  
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+    return 0;
+}
+
+int ftp_cdup(response_t * res, const user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;  
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+    return 0;
+}
+
 int ftp_noop(response_t * res) {
     response_set(res, 200, "Command okay");
     return 0;

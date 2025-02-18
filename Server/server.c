@@ -172,6 +172,66 @@ int main(int argc, char** argv)
                 response_send(sockfd_accpt, &res);
                 break;
 
+            case RMD:
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - RMD command received: RMD %s\n", getpid(), cmd.args);
+
+                ftp_rmd(&res, &cmd, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
+                response_send(sockfd_accpt, &res);
+                break;
+
+            case MKD:
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - MKD command received: MKD %s\n", getpid(), cmd.args);
+
+                ftp_mkd(&res, &cmd, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
+                response_send(sockfd_accpt, &res);
+                break;
+
+            case PWD:
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - MKD command received: MKD\n", getpid());
+
+                ftp_pwd(&res, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
+                response_send(sockfd_accpt, &res);
+                break;
+
+            case CWD:
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - CWD command received: CWD %s\n", getpid(), cmd.args);
+
+                ftp_cwd(&res, &cmd, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
+                response_send(sockfd_accpt, &res);
+                break;
+
+            case CDUP:
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / COMM] - CDUP command received: CDUP\n", getpid());
+
+                ftp_cdup(&res, &session);
+
+                tstamp(stdout);
+                printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
+
+                response_send(sockfd_accpt, &res);
+                break;
+
             case NOOP:
                 tstamp(stdout);
                 printf(" - [CLIENT_%d / COMM] - NOOP command received: NOOP\n", getpid());
