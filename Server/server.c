@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/stat.h> // mkdir
 #include <errno.h> // errno
+#include <sys/time.h> // timeval
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -34,7 +35,7 @@ int main(int argc, char** argv)
     // DEFINE TIMEOUT FOR MAIN SOCKET
 
     struct timeval tv;
-    tv.tv_sec = 600;
+    tv.tv_sec = 9999;
     tv.tv_usec = 0;
     if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         perror("setsockopt()"); 
@@ -100,7 +101,7 @@ int main(int argc, char** argv)
         // DEFINE TIMEOUT FOR ACCEPT SOCKET
 
         struct timeval tv;
-        tv.tv_sec = 180;
+        tv.tv_sec = 9999;
         tv.tv_usec = 0;
         if(setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
             tstamp(stderr);
