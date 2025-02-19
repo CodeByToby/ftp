@@ -26,7 +26,7 @@ int main(int argc, char** argv)
 
     // CREATE AN ENDPOINT
 
-    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { 
+    if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { 
         perror("socket()"); 
         exit(EXIT_FAILURE); 
     }
@@ -34,23 +34,23 @@ int main(int argc, char** argv)
     // DEFINE TIMEOUT FOR MAIN SOCKET
 
     struct timeval tv;
-    tv.tv_sec = 360;
+    tv.tv_sec = 600;
     tv.tv_usec = 0;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+    if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         perror("setsockopt()"); 
         exit(EXIT_FAILURE);
     }
 
     // BIND THE SOCKET TO ADDRESS
 
-    if (bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) { 
+    if(bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) { 
         perror("bind()"); 
         exit(EXIT_FAILURE);
     }
 
     // PREPARE TO ACCEPT CONNECTIONS
 
-    if (listen(sockfd, 5) < 0) { 
+    if(listen(sockfd, 5) < 0) { 
         perror("listen()"); 
         exit(EXIT_FAILURE); 
     }
@@ -76,7 +76,7 @@ int main(int argc, char** argv)
 
         // ACCEPT SOCKET
 
-        if ((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) {
+        if((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) {
             tstamp(stderr);
             fprintf(stderr, " - [SERVER / ERRO] - ");
             perror("accept()"); 
@@ -88,21 +88,21 @@ int main(int argc, char** argv)
 
         retval = fork();
 
-        if (retval < 0) {
+        if(retval < 0) {
             fprintf(stderr, "<ERR> ");
             perror("fork()"); 
 
             close(sockfd_accpt);
-        } else if (retval > 0) {
+        } else if(retval > 0) {
             continue;
         }
 
         // DEFINE TIMEOUT FOR ACCEPT SOCKET
 
         struct timeval tv;
-        tv.tv_sec = 30;
+        tv.tv_sec = 180;
         tv.tv_usec = 0;
-        if (setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+        if(setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
             tstamp(stderr);
             fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
             perror("setsockopt()"); 
@@ -117,10 +117,10 @@ int main(int argc, char** argv)
         memset(&session, 0, sizeof(session));
         session.state = LOGGED_OUT;
 
-        while (TRUE) {
+        while(TRUE) {
             nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0);
 
-            if (nRead < 0) {
+            if(nRead < 0) {
                 tstamp(stderr);
                 fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
                 perror("recv()"); 
@@ -280,7 +280,7 @@ static int response_send(int sockfd, response_t * res)
 {    
     int nSent = send(sockfd, (void*) res, sizeof(response_t), 0);
 
-    if (nSent < 0 || nSent != sizeof(response_t)) {
+    if(nSent < 0 || nSent != sizeof(response_t)) {
         tstamp(stderr);
         fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
         perror("send()");
