@@ -24,7 +24,7 @@ static int validate(const char * validStr, const char * str) {
             validStrLen == strlen(str))? TRUE : FALSE;
 }
 
-static void response_set(response_t * res, const int code, const char * message) {
+void response_set(response_t * res, const int code, const char * message) {
     res->code = code;
     strncpy(res->message, message, BUFFER_SIZE-1);
     res->message[BUFFER_SIZE-1] = '\0';

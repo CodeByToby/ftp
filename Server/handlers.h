@@ -17,6 +17,8 @@ typedef struct user_session {
     char dir[BUFFER_SIZE];
 } user_session_t;
 
+void response_set(response_t * res, const int code, const char * message);
+
 int ftp_list(response_t * res, const command_t * cmd, const user_session_t * session);
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session);
 int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * session);
