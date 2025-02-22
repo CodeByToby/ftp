@@ -15,8 +15,6 @@
 #include "commands.h"
 #include "log.h"
 
-#define CREDENTIALS_FILE "passwd"
-
 static int validate(const char * validStr, const char * str) {
     int validStrLen = strlen(validStr);
 
@@ -73,7 +71,7 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
             currPath[i] = '.';
     }
 
-    if(snprintf(semName, sizeof(semName), "/%s-%s-%s", session->username, currPath, cmd->args) > sizeof(semName)) {
+    if(snprintf(semName, sizeof(semName), "/ftp-%s-%s-%s", session->username, currPath, cmd->args) > sizeof(semName)) {
         response_set(res, 550, "Requested action not taken. Argument too long");
         return -1;
     }
@@ -142,7 +140,7 @@ int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * sess
             currPath[i] = '.';
     }
 
-    if(snprintf(semName, sizeof(semName), "/%s-%s-%s", session->username, currPath, cmd->args) > sizeof(semName)) {
+    if(snprintf(semName, sizeof(semName), "/ftp-%s-%s-%s", session->username, currPath, cmd->args) > sizeof(semName)) {
         response_set(res, 550, "Requested action not taken. Argument too long");
         return -1;
     }

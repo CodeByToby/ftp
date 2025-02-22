@@ -4,6 +4,8 @@
 #include "../Common/packets.h"
 #include "../Common/defines.h"
 
+#define CREDENTIALS_FILE "passwd"
+
 typedef enum {
     LOGGED_IN,
     LOGGED_OUT,

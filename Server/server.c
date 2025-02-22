@@ -10,13 +10,13 @@
 #include <errno.h> // errno
 #include <sys/time.h> // timeval
 #include <signal.h> // signal killpg
-#include <sys/wait.h> // wait
 
 #include "../Common/packets.h"
 #include "../Common/command_types.h"
 #include "../Common/defines.h"
 #include "commands.h"
 #include "signals.h"
+#include "user_lock.h"
 #include "log.h"
 
 #define PRNT_TIMEOUT 180
@@ -33,6 +33,7 @@ int main(int argc, char** argv)
     int sockfd,
         sockfd_accpt;
     const struct sockaddr_un addr = { AF_UNIX, "/tmp/ftp.sock" };
+    user_lock_array_t locks;
 
     // CREATE AN ENDPOINT
 
@@ -48,6 +49,7 @@ int main(int argc, char** argv)
     tv.tv_usec = 0;
     if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         perror("setsockopt()"); 
+        close(sockfd);
         exit(EXIT_FAILURE);
     }
 
@@ -55,6 +57,7 @@ int main(int argc, char** argv)
 
     if(bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) { 
         perror("bind()"); 
+        close(sockfd);
         exit(EXIT_FAILURE);
     }
 
@@ -62,6 +65,7 @@ int main(int argc, char** argv)
 
     if(listen(sockfd, 5) < 0) { 
         perror("listen()"); 
+        close(sockfd);
         exit(EXIT_FAILURE); 
     }
 
@@ -69,12 +73,17 @@ int main(int argc, char** argv)
 
     if(mkdir("home", 0700) && errno != EEXIST) {
         perror("mkdir()");
+        close(sockfd);
         exit(EXIT_FAILURE);
     }
 
-    log_info("Online", 0);
+    // CAP NR OF CONNECTIONS PER USER
+
+    create_user_locks(&locks, sockfd, 1);
 
     // SERVER SESSION
+
+    log_info("Online", 0);
 
     int pgid; 
     int isFirstProcess = TRUE;
@@ -96,11 +105,12 @@ int main(int argc, char** argv)
             }
             
             killpg(pgid, SIGINT); // Send SIGINT to all children
-            while (wait(NULL) > 0); // Wait until all childen have exited
+            while(wait(NULL) > 0); // Wait until all childen have exited
 
             log_info("All connections have been closed. Exiting", 0);
 
             close(sockfd);
+            destroy_user_locks(&locks);
             exit(EXIT_FAILURE);
         }
 

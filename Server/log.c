@@ -30,7 +30,7 @@ void log_erro(char * msg, int pid) {
 }
 
 void log_comm(char * msg, int pid, command_t * cmd) {
-    tstamp(stdout);
+    tstamp(LOG_OUT);
 
     printf(" - [CLIENT_%d / COMM] - %s command received: %s %s\n", getpid(), msg, msg, cmd->args);
 }
