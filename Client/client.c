@@ -10,7 +10,7 @@
 #include "../Common/packets.h"
 #include "../Common/command_types.h"
 #include "../Common/defines.h"
-#include "trim.h"
+#include "../Common/string_helpers.h"
 
 static int command_get(command_t * cmd);
 

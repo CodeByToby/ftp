@@ -1,7 +1,7 @@
 #include <ctype.h> // isspace
 #include <string.h> // strlen
 
-#include "trim.h"
+#include "string_helpers.h"
 
 void trim(char * str) {
     int start = 0;
@@ -21,3 +21,8 @@ void trim(char * str) {
     // Null terminate to cut off remainder of string
     str[i - start] = '\0';
 } 
+
+int strncmp_size(const char * s1, const char * s2) {
+    return (strncmp(s1, s2, strlen(s1)) == 0 && 
+            strlen(s1) == strlen(s2))? 1 : 0;
+}
