@@ -8,8 +8,9 @@
 #include <ctype.h>
 
 #include "../Common/packets.h"
+#include "../Common/command_types.h"
 #include "../Common/defines.h"
-#include "../Common/trim.h"
+#include "trim.h"
 
 static int command_get(command_t * cmd);
 

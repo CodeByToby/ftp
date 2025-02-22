@@ -12,8 +12,8 @@
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
-#include "handlers.h"
-#include "tstamp.h"
+#include "commands.h"
+#include "log.h"
 
 #define CREDENTIALS_FILE "passwd"
 
@@ -79,10 +79,7 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
     }
 
     if((sem = sem_open(semName, O_CREAT | O_EXCL, 0600, 1)) == SEM_FAILED) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("sem_open()");
-
+        log_erro("sem_open()", getpid());
         response_set(res, 450, "Requested action not taken. Folder unavailable");
         return -1;
     }
@@ -101,10 +98,7 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
             sem_close(sem);
             sem_unlink(semName);
 
-            tstamp(stderr);
-            fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-            perror("rmdir()"); 
-
+            log_erro("rmdir()", getpid());
             response_set(res, 550, "Requested action not taken. System issue");
             return -1;
         }
@@ -156,10 +150,7 @@ int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * sess
     printf("sem: %s\n", semName);
 
     if((sem = sem_open(semName, O_CREAT | O_EXCL, 0600, 1)) == SEM_FAILED) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("sem_open()");
-
+        log_erro("sem_open()", getpid());
         response_set(res, 450, "Requested action not taken. Folder unavailable");
         return -1;
     }
@@ -177,10 +168,7 @@ int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * sess
             sem_close(sem);
             sem_unlink(semName);
 
-            tstamp(stderr);
-            fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-            perror("mkdir()"); 
-
+            log_erro("mkdir()", getpid());
             response_set(res, 550, "Requested action not taken. System issue");
             return -1;
         }
@@ -251,10 +239,7 @@ int ftp_cwd(response_t * res, const command_t * cmd, user_session_t * session) {
 
     // Change directory
     if(chdir(newPath) < 0) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("chdir()"); 
-
+        log_erro("chdir()", getpid());
         response_set(res, 550, "Failed to change directory");
         return -1;
     }
@@ -294,10 +279,7 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
     }
 
     if((fp = fopen(CREDENTIALS_FILE, "r")) == NULL) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("fopen()"); 
-
+        log_erro("fopen()", getpid());
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;  
     }
@@ -327,20 +309,14 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
     char * root_path = strtok(NULL, "\n");
 
     if(mkdir(root_path, 0700) && errno != EEXIST) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("mkdir()"); 
-
+        log_erro("mkdir()", getpid());
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;
     } 
     
     // Move the process to the root dir
     if(chdir(root_path)) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("chdir()"); 
-
+        log_erro("chdir()", getpid());
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;
     } 
@@ -365,10 +341,7 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
     }
 
     if((fp = fopen(CREDENTIALS_FILE, "r")) == NULL) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("fopen()"); 
-
+        log_erro("fopen()", getpid());
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;  
     }

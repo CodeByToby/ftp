@@ -3,19 +3,21 @@
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <unistd.h> setpgid
+#include <unistd.h> // getpid setpgid
 #include <ctype.h>
 #include <string.h>
 #include <sys/stat.h> // mkdir
 #include <errno.h> // errno
 #include <sys/time.h> // timeval
 #include <signal.h> // signal killpg
-#include <sys/wait.h> // waitpid
+#include <sys/wait.h> // wait
 
 #include "../Common/packets.h"
+#include "../Common/command_types.h"
 #include "../Common/defines.h"
-#include "tstamp.h"
-#include "handlers.h"
+#include "commands.h"
+#include "signals.h"
+#include "log.h"
 
 #define PRNT_TIMEOUT 180
 #define CHLD_TIMEOUT 60
@@ -24,20 +26,6 @@ static int response_send(int sockfd, response_t * res);
 static int child_process_logic(int sockfd_accpt);
 
 volatile int isClosing = FALSE;
-volatile int nChildren = 0;
-
-void sigint_handler(int signo) { isClosing = TRUE; }
-void sigchld_handler(int signo) {
-    nChildren--;
-
-    // Taken from https://beej.us/guide/bgnet/
-    // waitpid() might overwrite errno, so we save and restore it:
-    int saved_errno = errno;
-
-    while (waitpid(-1, NULL, WNOHANG) > 0);
-
-    errno = saved_errno;
-}
 
 int main(int argc, char** argv) 
 {
@@ -84,8 +72,7 @@ int main(int argc, char** argv)
         exit(EXIT_FAILURE);
     }
 
-    tstamp(stdout);
-    printf(" - [SERVER / INFO] - Online\n");
+    log_info("Online", 0);
 
     // SERVER SESSION
 
@@ -99,41 +86,38 @@ int main(int argc, char** argv)
 
     while(1) {
         if((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) {
-            close(sockfd);
-            killpg(pgid, SIGINT);
-
-            while(nChildren != 0);
-
             if(errno == ETIMEDOUT || errno == EINTR) {
-                tstamp(stdout);
-                printf(" - [SERVER / INFO] - Process has timed out or has been interrupted\n");
+                if(isClosing == FALSE) // SIGCHLD has been intercepted, don't close
+                    continue;
 
-                exit(EXIT_SUCCESS);
+                log_info("Process has timed out or has been interrupted. Closing all connections...", 0);
             } else {
-                tstamp(stderr);
-                fprintf(stderr, " - [SERVER / ERRO] - ");
-                perror("accept()");
-                
-                exit(EXIT_FAILURE);
+                log_erro("accept()", 0);
             }
+            
+            killpg(pgid, SIGINT); // Send SIGINT to all children
+            while (wait(NULL) > 0); // Wait until all childen have exited
+
+            log_info("All connections have been closed. Exiting", 0);
+
+            close(sockfd);
+            exit(EXIT_FAILURE);
         }
 
         // FORK IN THE ROAD
 
-        chldpid = fork();
-
-        if(chldpid < 0) {
-            fprintf(stderr, "<ERR> ");
-            perror("fork()"); 
-
+        if((chldpid = fork()) < 0) {
+            log_erro("fork()", 0);
             close(sockfd_accpt);
-        } 
+        }
+
         if(chldpid == 0) {
             close(sockfd); // Child process does not need this
             child_process_logic(sockfd_accpt);
+
+            exit(EXIT_FAILURE); // fork should not reach this, hence FAILURE
         }
 
-        nChildren++;
         close(sockfd_accpt); // Parent process does not need this
 
         // Prepare a process group for all children
@@ -158,10 +142,7 @@ static int child_process_logic(int sockfd_accpt) {
     tv.tv_sec = CHLD_TIMEOUT;
     tv.tv_usec = 0;
     if(setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("setsockopt()"); 
-
+        log_erro("setsockopt()", getpid());
         exit(EXIT_FAILURE); 
     }
 
@@ -176,146 +157,100 @@ static int child_process_logic(int sockfd_accpt) {
         memset(&cmd, 0, sizeof(cmd));
         memset(&res, 0, sizeof(res));
 
-        if(isClosing == TRUE || (nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0)) < 0) {
+        if((nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0)) < 0 && isClosing == TRUE) {
             response_set(&res, 421, "Service not available, closing control connection");
             send(sockfd_accpt, (void*) &res, sizeof(response_t), 0);
 
-            close(sockfd_accpt);
-
             if(errno == ETIMEDOUT || errno == EINTR) {
-                tstamp(stdout);
-                printf(" - [CLIENT_%d / INFO] - Process has timed out or has been interrupted\n", getpid());
-
-                exit(EXIT_SUCCESS);
+                log_info("Process has timed out or has been interrupted", getpid());
             } else {
-                tstamp(stderr);
-                fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-                perror("recv()"); 
-
-                exit(EXIT_FAILURE);
+                log_erro("recv()", getpid());
             }
+
+            close(sockfd_accpt);
+            exit(EXIT_FAILURE);
+
         }
 
         switch (cmd.type) {
         case USER:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - USER command received: USER %s\n", getpid(), cmd.args);
-
+            log_comm("USER", getpid(), &cmd);
             ftp_user(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-            
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
-
             break;
             
         case PASS:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - PASS command received\n", getpid());
-            
+            log_comm("PASS", getpid(), &cmd);
             ftp_pass(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case LIST:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - PASS command received: LIST %s\n", getpid(), cmd.args);
-
+            log_comm("LIST", getpid(), &cmd);
             ftp_list(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case RMD:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - RMD command received: RMD %s\n", getpid(), cmd.args);
-
+            log_comm("RMD", getpid(), &cmd);
             ftp_rmd(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case MKD:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - MKD command received: MKD %s\n", getpid(), cmd.args);
-
+            log_comm("MKD", getpid(), &cmd);
             ftp_mkd(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case PWD:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - PWD command received: PWD\n", getpid());
-
+            log_comm("PWD", getpid(), &cmd);
             ftp_pwd(&res, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case CWD:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - CWD command received: CWD %s\n", getpid(), cmd.args);
-
+            log_comm("CWD", getpid(), &cmd);
             ftp_cwd(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case CDUP:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - CDUP command received: CDUP\n", getpid());
-
+            log_comm("CDUP", getpid(), &cmd);
             strncpy(cmd.args, "..", 3);
             ftp_cwd(&res, &cmd, &session);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case NOOP:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - NOOP command received: NOOP\n", getpid());
-
+            log_comm("NOOP", getpid(), &cmd);
             ftp_noop(&res);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
 
         case QUIT:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - QUIT command received: QUIT\n", getpid());
-
+            log_comm("QUIT", getpid(), &cmd);
             ftp_quit(&res);
 
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res.code, res.message);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             
             close(sockfd_accpt);
@@ -323,14 +258,10 @@ static int child_process_logic(int sockfd_accpt) {
 
         case HELP:
         default:
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / COMM] - HELP command received: HELP %s\n", getpid(), cmd.args);
-            
+            log_comm("HELP", getpid(), &cmd);
             ftp_help(&res, &cmd);
             
-            tstamp(stdout);
-            printf(" - [CLIENT_%d / RESP] - %d\n", getpid(), res.code);
-
+            log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;
         }
@@ -342,10 +273,7 @@ static int response_send(int sockfd, response_t * res)
     int nSent = send(sockfd, (void*) res, sizeof(response_t), 0);
 
     if(nSent < 0 || nSent != sizeof(response_t)) {
-        tstamp(stderr);
-        fprintf(stderr, " - [CLIENT_%d / ERRO] - ", getpid());
-        perror("send()");
-
+        log_erro("send()", getpid());
         close(sockfd);
         exit(EXIT_FAILURE);
     }

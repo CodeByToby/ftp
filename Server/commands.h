@@ -1,5 +1,5 @@
-#ifndef HANDLERS_H
-#define HANDLERS_H
+#ifndef COMMANDS_H
+#define COMMANDS_H
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
