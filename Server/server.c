@@ -20,90 +20,27 @@
 #include "user_lock.h"
 #include "log.h"
 
+#define CONN_PORT "3456"
+
 #define PRNT_TIMEOUT 180
 #define CHLD_TIMEOUT 60
 
+static int conn_socket_create(void);
 static int response_send(int sockfd, response_t * res);
 static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks);
 
 volatile int isClosing = FALSE;
 
-int main(int argc, char** argv) 
+int main(int argc, char** argv)
 {
     int chldpid;
     int sockfd,
         sockfd_accpt;
     user_lock_array_t locks;
 
-    // GET ADDRESS
+    // CREATE SOCKET
 
-    struct addrinfo hints, *res;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // IPv4
-    hints.ai_socktype = SOCK_STREAM; // TCP
-    hints.ai_flags = AI_PASSIVE; // fill in my IP for me
-
-    if (getaddrinfo(NULL, "3490", &hints, &res) != 0) {
-        perror("getaddrinfo()");
-        exit(EXIT_FAILURE);
-    }
-
-    struct addrinfo * p;
-    for(p = res; p != NULL; p = p->ai_next) {
-        char ipstr[INET_ADDRSTRLEN];
-        struct sockaddr_in *ipv4 = (struct sockaddr_in *) p->ai_addr;
-
-        inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof(ipstr));
-        printf("Attempting to create socket on %s...\n", ipstr);
-
-        // CREATE AN ENDPOINT
-
-        if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) { 
-            perror("socket()"); 
-            continue;
-        }
-
-        // DEFINE TIMEOUT FOR MAIN SOCKET
-
-        struct timeval tv;
-        tv.tv_sec = PRNT_TIMEOUT;
-        tv.tv_usec = 0;
-        if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
-            perror("setsockopt()"); 
-            close(sockfd);
-            freeaddrinfo(res);
-            exit(EXIT_FAILURE);
-        }
-
-        // BIND THE SOCKET TO ADDRESS
-
-        if(bind(sockfd, p->ai_addr, p->ai_addrlen) < 0) { 
-            perror("bind()"); 
-            close(sockfd);
-            continue;
-        }
-
-        break;
-    }
-
-
-    if (p == NULL) {
-        fprintf(stderr, "Server failed to bind\n");
-        freeaddrinfo(res);
-        exit(EXIT_FAILURE);
-    }
-
-    freeaddrinfo(res);
-    exit(0);
-
-    // PREPARE TO ACCEPT CONNECTIONS
-
-    if(listen(sockfd, 5) < 0) { 
-        perror("listen()"); 
-        close(sockfd);
-        exit(EXIT_FAILURE); 
-    }
+    sockfd = conn_socket_create();
 
     // MAKE A HOME DIRECTORY FOR CLIENTS
 
@@ -175,6 +112,87 @@ int main(int argc, char** argv)
         
         setpgid(chldpid, pgid);
     }
+}
+
+static int conn_socket_create(void) {
+    int sockfd;
+    struct addrinfo hints, * res, * p;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET; // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+    hints.ai_flags = AI_PASSIVE; // fill in my IP for me
+
+    if (getaddrinfo(NULL, CONN_PORT, &hints, &res) != 0) {
+        perror("getaddrinfo()");
+        exit(EXIT_FAILURE);
+    }
+
+    for(p = res; p != NULL; p = p->ai_next) {
+
+        // CREATE AN ENDPOINT
+
+        if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) { 
+            perror("socket()"); 
+            continue;
+        }
+
+        // SET SOCKET OPTIONS
+
+        // Time out
+        struct timeval tv;
+        tv.tv_sec = PRNT_TIMEOUT;
+        tv.tv_usec = 0;
+        if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv)) < 0) {
+            perror("setsockopt()"); 
+            close(sockfd);
+            freeaddrinfo(res);
+            exit(EXIT_FAILURE);
+        }
+
+        // Reusing address
+        int yes = 1;
+        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+            perror("setsockopt()"); 
+            close(sockfd);
+            freeaddrinfo(res);
+            exit(EXIT_FAILURE);
+        }
+
+        // BIND THE SOCKET TO ADDRESS
+
+        if(bind(sockfd, p->ai_addr, p->ai_addrlen) < 0) { 
+            perror("bind()"); 
+            close(sockfd);
+            continue;
+        }
+
+        // PREPARE TO ACCEPT CONNECTIONS
+
+        if(listen(sockfd, 10) < 0) { 
+            perror("listen()"); 
+            close(sockfd);
+            continue;
+        }
+
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "Server failed to bind\n");
+        freeaddrinfo(res);
+        exit(EXIT_FAILURE);
+    }
+
+    char ipstr[INET_ADDRSTRLEN];
+    struct sockaddr_in *ip = (struct sockaddr_in *) p->ai_addr;
+
+    inet_ntop(p->ai_family, &(ip->sin_addr), ipstr, sizeof(ipstr));
+    printf("Server running on %s:%s...\n", ipstr, CONN_PORT);
+
+    freeaddrinfo(res);
+
+    return sockfd;
 }
 
 static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {

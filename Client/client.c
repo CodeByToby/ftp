@@ -6,35 +6,32 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <netdb.h> // (addrinfo)
+#include <arpa/inet.h> // inet_ntop
 
 #include "../Common/packets.h"
 #include "../Common/command_types.h"
 #include "../Common/defines.h"
 #include "../Common/string_helpers.h"
 
+#define CONN_PORT "3456"
+
+static int conn_socket_create(char * hostname);
 static int command_get(command_t * cmd);
 
 int main(int argc, char** argv)
 {
     int nSent, nRead;
-
     int sockfd;
-    struct sockaddr_un addr = { AF_UNIX, "/tmp/ftp.sock" };
 
-    // CREATE AN ENDPOINT
-
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { 
-        perror("socket()"); 
-        exit(EXIT_FAILURE); 
+    if (argc != 2) {
+        fprintf(stderr, "Usage: ./client HOSTNAME\n");
+        exit(EXIT_FAILURE);
     }
 
-    // CONNECT TO THE SOCKET
+    // CREATE SOCKET
 
-    if (connect(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
-        perror("connect()");
-        exit(EXIT_FAILURE); 
-    }
+    sockfd = conn_socket_create(argv[1]);
 
     // CLIENT LOOP
 
@@ -159,4 +156,54 @@ static int command_get(command_t * cmd) {
     //printf("Arguments: %s\n", cmd->args);
 
     return 0;
+}
+
+static int conn_socket_create(char * hostname) {
+    int sockfd;
+    struct addrinfo hints, * res, * p;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET; // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+
+    if (getaddrinfo(hostname, CONN_PORT, &hints, &res) != 0) {
+        perror("getaddrinfo()");
+        exit(EXIT_FAILURE);
+    }
+
+    for(p = res; p != NULL; p = p->ai_next) {
+
+        // CREATE AN ENDPOINT
+
+        if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) { 
+            perror("socket()"); 
+            continue;
+        }
+
+        // CONNECT TO THE SOCKET
+
+        if(connect(sockfd, p->ai_addr, p->ai_addrlen) < 0) { 
+            perror("connect()"); 
+            close(sockfd);
+            continue;
+        }
+
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "Client failed to connect\n");
+        freeaddrinfo(res);
+        exit(EXIT_FAILURE);
+    }
+
+    char ipstr[INET_ADDRSTRLEN];
+    struct sockaddr_in *ip = (struct sockaddr_in *) p->ai_addr;
+
+    inet_ntop(p->ai_family, &(ip->sin_addr), ipstr, sizeof(ipstr));
+    printf("Server running on %s:%s...\n", ipstr, CONN_PORT);
+
+    freeaddrinfo(res);
+
+    return sockfd;
 }
