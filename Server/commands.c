@@ -324,7 +324,10 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session, 
         return -1;
     }
 
+    // Update session
     session->state = LOGGED_IN;
+    session->data_sockfd = 0;
+    session->isPassive = FALSE;
     getcwd(session->root, BUFFER_SIZE);
     strncpy(session->dir, "/", 2);
 
@@ -390,5 +393,32 @@ int ftp_help(response_t * res, const command_t * cmd) {
     }
 
     response_set(res, 214, "Commands supported:\n\tNOOP\tQUIT\tHELP\n\tPASS\tUSER\n\tPWD\tMKD\tRMD\tCWD\tCDUP\n");
+    return 0;
+}
+
+int ftp_pasv(response_t * res, user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+
+    return 0;
+}
+
+int ftp_port(response_t * res, const command_t * cmd, user_session_t * session) {
+    if (session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;
+    }
+
+    if(cmd->args[0] == '\0') {
+        response_set(res, 501, "Syntax error in parameters or arguments. No argument");
+        return -1;
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+
     return 0;
 }
