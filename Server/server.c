@@ -23,7 +23,7 @@
 #define CHLD_TIMEOUT 60
 
 static int response_send(int sockfd, response_t * res);
-static int child_process_logic(int sockfd_accpt);
+static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks);
 
 volatile int isClosing = FALSE;
 
@@ -79,7 +79,12 @@ int main(int argc, char** argv)
 
     // CAP NR OF CONNECTIONS PER USER
 
-    create_user_locks(&locks, sockfd, 1);
+    create_user_locks(&locks, sockfd, PER_USR_CLIENT_CAP);
+
+    // SIGNAL HANDLING
+
+    signal(SIGINT, sigint_handler);
+    signal(SIGCHLD, sigchld_handler);
 
     // SERVER SESSION
 
@@ -87,11 +92,6 @@ int main(int argc, char** argv)
 
     int pgid; 
     int isFirstProcess = TRUE;
-
-    // SIGNAL HANDLING
-
-    signal(SIGINT, sigint_handler);
-    signal(SIGCHLD, sigchld_handler);
 
     while(1) {
         if((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) {
@@ -123,14 +123,15 @@ int main(int argc, char** argv)
 
         if(chldpid == 0) {
             close(sockfd); // Child process does not need this
-            child_process_logic(sockfd_accpt);
+            child_process_logic(sockfd_accpt, &locks);
 
             exit(EXIT_FAILURE); // fork should not reach this, hence FAILURE
         }
 
         close(sockfd_accpt); // Parent process does not need this
 
-        // Prepare a process group for all children
+        // PROCESS GROUPS
+
         if(isFirstProcess == TRUE) {
             isFirstProcess = FALSE;
             pgid = chldpid;
@@ -140,7 +141,7 @@ int main(int argc, char** argv)
     }
 }
 
-static int child_process_logic(int sockfd_accpt) {
+static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
     int nRead;
 
     command_t cmd;
@@ -153,6 +154,7 @@ static int child_process_logic(int sockfd_accpt) {
     tv.tv_usec = 0;
     if(setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         log_erro("setsockopt()", getpid());
+        close(sockfd_accpt);
         exit(EXIT_FAILURE); 
     }
 
@@ -193,7 +195,7 @@ static int child_process_logic(int sockfd_accpt) {
             
         case PASS:
             log_comm("PASS", getpid(), &cmd);
-            ftp_pass(&res, &cmd, &session);
+            ftp_pass(&res, &cmd, &session, locks);
 
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
@@ -258,7 +260,7 @@ static int child_process_logic(int sockfd_accpt) {
 
         case QUIT:
             log_comm("QUIT", getpid(), &cmd);
-            ftp_quit(&res);
+            ftp_quit(&res, &session, locks);
 
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);

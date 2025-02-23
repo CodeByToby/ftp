@@ -12,15 +12,10 @@
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
+#include "../Common/string_helpers.h"
+#include "user_lock.h"
 #include "commands.h"
 #include "log.h"
-
-static int validate(const char * validStr, const char * str) {
-    int validStrLen = strlen(validStr);
-
-    return (strncmp(validStr, str, validStrLen) == 0 && 
-            validStrLen == strlen(str))? TRUE : FALSE;
-}
 
 void response_set(response_t * res, const int code, const char * message) {
     res->code = code;
@@ -41,9 +36,6 @@ int ftp_list(response_t * res, const command_t * cmd, const user_session_t * ses
 
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session) {
     const char allowedCharacters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
-
-    char semName[BUFFER_SIZE];
-    sem_t * sem;
     
     if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
@@ -60,49 +52,16 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
         return -1;
     }
 
-    // Remove slashes from path, preventing nested semaphores
-    char currPath[BUFFER_SIZE];
-    
-    strncpy(currPath, session->dir+1, BUFFER_SIZE-1); // session->dir[+1] might cause problems later
-    currPath[BUFFER_SIZE-1] = '\0';
-
-    for(int i = 0; i < strlen(currPath); ++i) {
-        if(currPath[i] == '/')
-            currPath[i] = '.';
-    }
-
-    if(snprintf(semName, sizeof(semName), "/ftp-%s-%s-%s", session->username, currPath, cmd->args) > sizeof(semName)) {
-        response_set(res, 550, "Requested action not taken. Argument too long");
+    if (access(cmd->args, F_OK) < 0) {
+        response_set(res, 550, "Requested action not taken. Folder not found");
         return -1;
     }
 
-    if((sem = sem_open(semName, O_CREAT | O_EXCL, 0600, 1)) == SEM_FAILED) {
-        log_erro("sem_open()", getpid());
-        response_set(res, 450, "Requested action not taken. Folder unavailable");
+    if(rmdir(cmd->args)) {
+        log_erro("rmdir()", getpid());
+        response_set(res, 550, "Requested action not taken. System issue");
         return -1;
     }
-
-        // If folder does not exist
-        if (access(cmd->args, F_OK) < 0) {
-            sem_close(sem);
-            sem_unlink(semName);
-
-            response_set(res, 550, "Requested action not taken. Folder not found");
-            return -1;
-        }
-
-        // TODO: prevent deletion if another process exists in directory
-        if(rmdir(cmd->args)) {
-            sem_close(sem);
-            sem_unlink(semName);
-
-            log_erro("rmdir()", getpid());
-            response_set(res, 550, "Requested action not taken. System issue");
-            return -1;
-        }
-
-    sem_close(sem);
-    sem_unlink(semName);
 
     response_set(res, 250, "Requested action okay, completed");
     return 0;
@@ -110,9 +69,6 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
 
 int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * session) {
     const char allowedCharacters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
-
-    char semName[BUFFER_SIZE];
-    sem_t * sem;
 
     if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
@@ -129,50 +85,16 @@ int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * sess
         return -1;
     }
 
-    // Remove slashes from path, preventing nested semaphores
-    char currPath[BUFFER_SIZE];
-
-    strncpy(currPath, session->dir+1, BUFFER_SIZE-1); // session->dir[+1] might cause problems later
-    currPath[BUFFER_SIZE-1] = '\0';
-
-    for(int i = 0; i < strlen(currPath); ++i) {
-        if(currPath[i] == '/')
-            currPath[i] = '.';
-    }
-
-    if(snprintf(semName, sizeof(semName), "/ftp-%s-%s-%s", session->username, currPath, cmd->args) > sizeof(semName)) {
-        response_set(res, 550, "Requested action not taken. Argument too long");
+    if (access(cmd->args, F_OK) == 0) {
+        response_set(res, 550, "Requested action not taken. Folder already exists");
         return -1;
     }
 
-    printf("sem: %s\n", semName);
-
-    if((sem = sem_open(semName, O_CREAT | O_EXCL, 0600, 1)) == SEM_FAILED) {
-        log_erro("sem_open()", getpid());
-        response_set(res, 450, "Requested action not taken. Folder unavailable");
+    if(mkdir(cmd->args, 0700)) {
+        log_erro("mkdir()", getpid());
+        response_set(res, 550, "Requested action not taken. System issue");
         return -1;
     }
-
-        // If folder exists
-        if (access(cmd->args, F_OK) == 0) {
-            sem_close(sem);
-            sem_unlink(semName);
-
-            response_set(res, 550, "Requested action not taken. Folder already exists");
-            return -1;
-        }
-
-        if(mkdir(cmd->args, 0700)) {
-            sem_close(sem);
-            sem_unlink(semName);
-
-            log_erro("mkdir()", getpid());
-            response_set(res, 550, "Requested action not taken. System issue");
-            return -1;
-        }
-
-    sem_close(sem);
-    sem_unlink(semName);
 
     response_set(res, 250, "Requested action okay, completed");
     return 0;
@@ -261,7 +183,7 @@ int ftp_noop(response_t * res) {
     return 0;
 }
 
-int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) {
+int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session, user_lock_array_t * locks) {
     FILE * fp;
     char buffer[BUFFER_SIZE];
     
@@ -285,13 +207,13 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
         // Check credentials for the user
         while (isValid == FALSE && fgets(buffer, BUFFER_SIZE, fp) != NULL) {
             char * validName = strtok(buffer, ":");
-            isValid = validate(validName, session->username);
+            isValid = strncmp_size(validName, session->username);
 
             if(isValid == FALSE)
                 continue;
 
             char * validPass = strtok(NULL, ":");
-            isValid = validate(validPass, cmd->args);
+            isValid = strncmp_size(validPass, cmd->args);
         }
 
     fclose(fp);
@@ -301,6 +223,14 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
 
         response_set(res, 530, "User not logged in");
         return -1;
+    }
+
+    // Attempt to lock user
+    if (lock_trywait(locks, session->username) < 0) {
+        if (errno != EAGAIN)
+            log_erro("lock_trywait()", getpid());
+        response_set(res, 550, "Requested action not taken. User is already logged in");
+        return -1;       
     }
 
     // Create a home directory for user
@@ -317,7 +247,7 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session) 
         log_erro("chdir()", getpid());
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;
-    } 
+    }
 
     session->state = LOGGED_IN;
     getcwd(session->root, BUFFER_SIZE);
@@ -347,7 +277,7 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
         // Check the validity of the username
         while (isValid == FALSE && fgets(buffer, BUFFER_SIZE, fp) != NULL) {
             char * validName = strtok(buffer, ":");
-            isValid = validate(validName, cmd->args);
+            isValid = strncmp_size(validName, cmd->args);
         }
 
     fclose(fp);
@@ -368,7 +298,11 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
     return 0;
 }
 
-int ftp_quit(response_t * res) {
+int ftp_quit(response_t * res, const user_session_t * session, user_lock_array_t * locks) {
+    // Unlock user
+    lock_post(locks, session->username);
+    lock_close(locks, session->username);
+
     response_set(res, 221, "Service closing control connection");
     return 0;
 }
