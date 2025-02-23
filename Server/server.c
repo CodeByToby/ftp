@@ -1,15 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/un.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <stdio.h> // perror
+#include <stdlib.h> // exit (exit types)
 #include <unistd.h> // getpid setpgid
-#include <ctype.h>
-#include <string.h>
-#include <sys/stat.h> // mkdir
+#include <string.h> // strncpy memset
 #include <errno.h> // errno
-#include <sys/time.h> // timeval
 #include <signal.h> // signal killpg
+#include <sys/un.h> // (unix socket type)
+#include <sys/types.h>
+#include <sys/time.h> // timeval
+#include <sys/stat.h> // mkdir
+#include <sys/socket.h> // socket setsockopt recv send
+#include <sys/wait.h> // wait
 
 #include "../Common/packets.h"
 #include "../Common/command_types.h"

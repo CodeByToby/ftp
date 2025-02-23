@@ -1,6 +1,5 @@
 #include <stdio.h> // fprintf
-#include <unistd.h>
-#include <string.h>
+#include <string.h> // strncpy memset strlen strtok
 #include <errno.h> // errno
 #include <time.h> // time localtime
 
@@ -15,7 +14,7 @@ void log_info(char * msg, int pid) {
     tstamp(LOG_OUT);
 
     if (pid > 0)
-        fprintf(LOG_OUT, " - [CLIENT_%d / INFO] - %s\n", getpid(), msg);
+        fprintf(LOG_OUT, " - [CLIENT_%d / INFO] - %s\n", pid, msg);
     else
         fprintf(LOG_OUT, " - [SERVER / INFO] - %s\n", msg);
 }
@@ -24,7 +23,7 @@ void log_erro(char * msg, int pid) {
     tstamp(LOG_ERR);
 
     if (pid > 0)
-        fprintf(LOG_ERR, " - [CLIENT_%d / ERRO] - %s: %s\n", getpid(), msg, strerror(errno));
+        fprintf(LOG_ERR, " - [CLIENT_%d / ERRO] - %s: %s\n", pid, msg, strerror(errno));
     else
         fprintf(LOG_ERR, " - [SERVER / ERRO] - %s: %s\n", msg, strerror(errno));
 }
@@ -32,13 +31,13 @@ void log_erro(char * msg, int pid) {
 void log_comm(char * msg, int pid, command_t * cmd) {
     tstamp(LOG_OUT);
 
-    printf(" - [CLIENT_%d / COMM] - %s command received: %s %s\n", getpid(), msg, msg, cmd->args);
+    printf(" - [CLIENT_%d / COMM] - %s command received: %s %s\n", pid, msg, msg, cmd->args);
 }
 
 void log_resp(int pid, response_t * res) {
     tstamp(LOG_OUT);
 
-    printf(" - [CLIENT_%d / RESP] - %d %s\n", getpid(), res->code, res->message);
+    printf(" - [CLIENT_%d / RESP] - %d %s\n", pid, res->code, res->message);
 }
 
 static void tstamp(FILE * stream) {

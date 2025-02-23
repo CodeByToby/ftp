@@ -1,11 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h> // perror
+#include <stdlib.h> // exit (exit types)
 #include <unistd.h> // close
-#include <semaphore.h>
-#include <sys/wait.h> // wait
+#include <string.h> // strncpy
+#include <fcntl.h>  // (O_* constants)
 #include <semaphore.h> // sem_*
-#include <fcntl.h>  // O_* constants
+#include <sys/wait.h> // wait
 
 #include "../Common/string_helpers.h"
 #include "user_lock.h"

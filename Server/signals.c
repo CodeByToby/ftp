@@ -1,6 +1,6 @@
-#include <stdlib.h>
-#include <sys/wait.h> // waitpid
+#include <stdlib.h> // NULL
 #include <errno.h> // errno
+#include <sys/wait.h> // waitpid
 
 #include "../Common/defines.h"
 #include "signals.h"

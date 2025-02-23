@@ -1,14 +1,10 @@
-#include <sys/un.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h> // realpath
-#include <string.h>
-#include <sys/stat.h> // mkdir
+#include <stdio.h> // printf fopen fclose
+#include <stdlib.h> // realpath NULL
+#include <unistd.h> // getpid getcwd chdir access rmdir
+#include <string.h> // strncpy memset strlen strtok
 #include <errno.h> // errno
-#include <semaphore.h> // sem_*
-#include <fcntl.h>  // O_* constants
+#include <sys/types.h>
+#include <sys/stat.h> // mkdir
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -183,7 +179,7 @@ int ftp_noop(response_t * res) {
     return 0;
 }
 
-int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session, user_lock_array_t * locks) {
+int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session, const user_lock_array_t * locks) {
     FILE * fp;
     char buffer[BUFFER_SIZE];
     
@@ -298,7 +294,7 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
     return 0;
 }
 
-int ftp_quit(response_t * res, const user_session_t * session, user_lock_array_t * locks) {
+int ftp_quit(response_t * res, const user_session_t * session, const user_lock_array_t * locks) {
     // Unlock user
     lock_post(locks, session->username);
     lock_close(locks, session->username);
