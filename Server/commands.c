@@ -1,10 +1,11 @@
-#include <stdio.h> // printf fopen fclose
+#include <stdio.h> // printf fopen fclose opendir
 #include <stdlib.h> // realpath NULL
 #include <unistd.h> // getpid getcwd chdir access rmdir
 #include <string.h> // strncpy memset strlen strtok
 #include <errno.h> // errno
+#include <dirent.h> // dirent
 #include <sys/types.h>
-#include <sys/stat.h> // mkdir
+#include <sys/stat.h> // mkdir stat
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -19,15 +20,120 @@ void response_set(response_t * res, const int code, const char * message) {
     res->message[BUFFER_SIZE-1] = '\0';
 }
 
+static int resolve_path(const command_t * cmd, response_t * res, const user_session_t * session, char * resolvedPath, size_t path_len) {
+    char newPath[path_len];
+    char oldPath[path_len];
+
+    memset(newPath, 0, path_len);
+    memset(oldPath, 0, path_len);
+
+    if(cmd->args[0] == '/') {
+        // Parse as absolute path
+        if(snprintf(newPath, path_len, "%s/%s", session->root, cmd->args) > path_len) {
+            response_set(res, 550, "Requested action not taken. Argument too long");
+            return -1;
+        }
+    } else {
+        // Parse as relative path
+        getcwd(oldPath, sizeof(oldPath));
+
+        if(snprintf(newPath, path_len, "%s/%s", oldPath, cmd->args) > path_len) {
+            response_set(res, 550, "Requested action not taken. Argument too long");
+            return -1;
+        }
+    }
+
+    // Resolve path, get rid of . and .. and additional slashes
+    if(realpath(newPath, resolvedPath) == NULL) {
+        response_set(res, 550, "Requested action not taken. Path is invalid or does not exist");
+        return -1;
+    }
+
+    // Check if path is outside of root
+    if(strncmp(session->root, resolvedPath, strlen(session->root)) != 0) {
+        response_set(res, 550, "Requested action not taken. Path out of scope");
+        return -1;
+    }
+
+    return 0;
+}
+
+#define get_resolved_path(path) resolve_path(cmd, res, session, path, sizeof(path))
+
 
 int ftp_list(response_t * res, const command_t * cmd, const user_session_t * session) {
+    char path[BUFFER_SIZE];
+    struct stat pathStat;
+
+    memset(path, 0, sizeof(path));
+    
     if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
         return -1;  
     }
 
-    response_set(res, 502, "Command not yet implemented");
-    return 0;
+    if (get_resolved_path(path) < 0) {
+        // response is set in function
+        return -1;
+    }
+
+    if(stat(path, &pathStat) != 0) {
+        log_erro("stat()", getpid());
+        response_set(res, 550, "Requested action not taken. System issue");
+        return -1;
+    }
+
+    if(S_ISDIR(pathStat.st_mode)) {
+        // LIST ALL FILES AND SUBDIRECTORIES
+
+        char entryPath[BUFFER_SIZE];
+
+        DIR * dir;
+        struct dirent * entry;
+        struct stat entryStat;
+
+        if ((dir = opendir(path)) == NULL) { 
+            log_erro("opendir()", getpid());
+            response_set(res, 550, "Requested action not taken. System issue");
+            return -1;
+        }
+
+            while ((entry = readdir(dir)) != NULL) {
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                    continue;
+                }
+                
+                if(snprintf(entryPath, sizeof(entryPath), "%s/%s", path, entry->d_name) > sizeof(entryPath)) { 
+                    response_set(res, 550, "Requested action not taken. Filename too long to output");
+                    return -1;
+                }
+
+                if(stat(entryPath, &entryStat) != 0) {
+                    log_erro("stat()", getpid());
+                    response_set(res, 550, "Requested action not taken. System issue");
+                    return -1;
+                }
+
+                if (S_ISDIR(entryStat.st_mode)) {
+                    printf("%s/\n", entry->d_name);
+                }
+                else {
+                    printf("%s\n", entry->d_name);
+                }
+            }
+
+        closedir(dir);
+
+        response_set(res, 200, path);
+        return 0;
+    }
+
+    else {
+        // GET INFO ON FILE
+
+        response_set(res, 200, path);
+        return 0;
+    }
 }
 
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session) {
@@ -107,13 +213,9 @@ int ftp_pwd(response_t * res, const user_session_t * session) {
 }
 
 int ftp_cwd(response_t * res, const command_t * cmd, user_session_t * session) {
-    char oldPath[BUFFER_SIZE];
-    char newPath[BUFFER_SIZE];
-    char resolvedPath[BUFFER_SIZE];
+    char path[BUFFER_SIZE];
 
-    memset(oldPath, 0, sizeof(oldPath));
-    memset(newPath, 0, sizeof(newPath));
-    memset(resolvedPath, 0, sizeof(resolvedPath));
+    memset(path, 0, sizeof(path));
 
     if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
@@ -125,49 +227,26 @@ int ftp_cwd(response_t * res, const command_t * cmd, user_session_t * session) {
         return -1;
     }
 
-    if(cmd->args[0] == '/') {
-        // Parse as absolute path
-        if(snprintf(newPath, sizeof(newPath), "%s/%s", session->root, cmd->args) > sizeof(newPath)) {
-            response_set(res, 550, "Failed to change directory. Argument too long");
-            return -1;
-        }
-    } else {
-        // Parse as relative path
-        getcwd(oldPath, sizeof(oldPath));
-
-        if(snprintf(newPath, sizeof(newPath), "%s/%s", oldPath, cmd->args) > sizeof(newPath)) {
-            response_set(res, 550, "Failed to change directory. Argument too long");
-            return -1;
-        }
-    }
-
-    // Resolve path, get rid of . and .. and additional slashes
-    if(realpath(newPath, resolvedPath) == NULL) {
-        response_set(res, 550, "Failed to change directory. Path is invalid or does not exist");
-        return -1;
-    }
-
-    // Check if path is outside of root
-    if(strncmp(session->root, resolvedPath, strlen(session->root)) != 0) {
-        response_set(res, 550, "Failed to change directory. Directory out of scope");
+    if (get_resolved_path(path) < 0) {
+        // response is set in function
         return -1;
     }
 
     // Change directory
-    if(chdir(newPath) < 0) {
+    if(chdir(path) < 0) {
         log_erro("chdir()", getpid());
         response_set(res, 550, "Failed to change directory");
         return -1;
     }
 
     // Update directory in session
-    const char * newDir = resolvedPath + strlen(session->root);
+    const char * newDir = path + strlen(session->root);
 
     if(newDir[0] != '\0') {
         strncpy(session->dir, newDir, BUFFER_SIZE-1);
         session->dir[BUFFER_SIZE-1] = '\0';
     } else {
-        strncpy(session->dir, "/", 2);
+        strncpy(session->dir, "/", 2); // realpath cuts off last /, so we add it back in in case we're in root
     }
 
     response_set(res, 250, "Requested action okay, completed");
