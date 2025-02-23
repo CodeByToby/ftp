@@ -20,6 +20,9 @@ enum COMMAND_TYPE {
     PASS,   /* Provide server with password */
     USER,   /* Provide server with username */
 
+    PASV,
+    PORT,
+
     NOOP,   /* No operation */
     QUIT    /* Terminate the connection for this client */
 };

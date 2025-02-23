@@ -67,7 +67,7 @@ int main(int argc, char** argv)
     int isFirstProcess = TRUE;
 
     while(1) {
-        if((sockfd_accpt = accept(sockfd, NULL, NULL)) < 0) {
+        if((sockfd_accpt = accept(sockfd, NULL, NULL)) <= 0) {
             if(errno == ETIMEDOUT || errno == EINTR) {
                 if(isClosing == FALSE) // SIGCHLD has been intercepted, don't close
                     continue;
@@ -223,19 +223,24 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
         memset(&cmd, 0, sizeof(cmd));
         memset(&res, 0, sizeof(res));
 
-        if((nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0)) < 0 && isClosing == TRUE) {
+        if((nRead = recv(sockfd_accpt, (command_t*) &cmd, sizeof(command_t), 0)) < 0 || isClosing == TRUE) {
             response_set(&res, 421, "Service not available, closing control connection");
             send(sockfd_accpt, (void*) &res, sizeof(response_t), 0);
 
             if(errno == ETIMEDOUT || errno == EINTR) {
-                log_info("Process has timed out or has been interrupted", getpid());
+                log_info("Process has timed out or has been interrupted. Exiting", getpid());
             } else {
                 log_erro("recv()", getpid());
             }
 
             close(sockfd_accpt);
             exit(EXIT_FAILURE);
+        }
 
+        if (nRead == 0) {
+            log_info("Connection has been terminated by client. Exiting", getpid());
+            close(sockfd_accpt);
+            exit(EXIT_SUCCESS);
         }
 
         switch (cmd.type) {

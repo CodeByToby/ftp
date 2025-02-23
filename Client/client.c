@@ -82,7 +82,7 @@ int main(int argc, char** argv)
 
 static int command_get(command_t * cmd) {
     char buffer[BUFFER_SIZE + 4]; // +4 to account for type
-    char cmdTypeRaw[4];
+    char cmdTypeRaw[5];
     char *token;
 
     memset(&buffer, 0, sizeof(buffer));
@@ -101,6 +101,10 @@ static int command_get(command_t * cmd) {
         return -1;
     }
 
+    if(strlen(cmdTypeRaw) > 4) {
+        return -1;
+    }
+
     for (int i = 0; i < sizeof(cmdTypeRaw); ++i) {
         cmdTypeRaw[i] = toupper(cmdTypeRaw[i]);
     }
@@ -114,12 +118,15 @@ static int command_get(command_t * cmd) {
         cmd->args[0] = '\0';
     }
 
+
+
     // PARSE COMMAND TYPE
 
     if (strncmp(cmdTypeRaw, "LIST", 4) == 0) {
         cmd->type = LIST;
     } else if (strncmp(cmdTypeRaw, "HELP", 4) == 0) {
         cmd->type = HELP;
+        cmd->args[0] = '\0';
     } else if (strncmp(cmdTypeRaw, "RETR", 4) == 0) {
         cmd->type = RETR;
     } else if (strncmp(cmdTypeRaw, "STOR", 4) == 0) {
@@ -136,24 +143,30 @@ static int command_get(command_t * cmd) {
         cmd->type = MKD;
     } else if (strncmp(cmdTypeRaw, "PWD", 3) == 0) {
         cmd->type = PWD;
+        cmd->args[0] = '\0';
     } else if (strncmp(cmdTypeRaw, "CWD", 3) == 0) {
         cmd->type = CWD;
     } else if (strncmp(cmdTypeRaw, "CDUP", 4) == 0) {
         cmd->type = CDUP;
+        cmd->args[0] = '\0';
     } else if (strncmp(cmdTypeRaw, "PASS", 4) == 0) {
         cmd->type = PASS;
     } else if (strncmp(cmdTypeRaw, "USER", 4) == 0) {
         cmd->type = USER;
     } else if (strncmp(cmdTypeRaw, "NOOP", 4) == 0) {
         cmd->type = NOOP;
+        cmd->args[0] = '\0';
     } else if (strncmp(cmdTypeRaw, "QUIT", 4) == 0) {
         cmd->type = QUIT;
+        cmd->args[0] = '\0';
+    } else if (strncmp(cmdTypeRaw, "PASV", 4) == 0) {
+        cmd->type = PASV;
+        cmd->args[0] = '\0';
+    } else if (strncmp(cmdTypeRaw, "PORT", 4) == 0) {
+        cmd->type = PORT;
     } else {
         return -1;
     }
-
-    //printf("Type: %d\n", cmd->type);
-    //printf("Arguments: %s\n", cmd->args);
 
     return 0;
 }
