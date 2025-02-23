@@ -4,12 +4,13 @@
 #include <string.h> // strncpy memset
 #include <errno.h> // errno
 #include <signal.h> // signal killpg
-#include <sys/un.h> // (unix socket type)
+#include <netdb.h> // (addrinfo)
 #include <sys/types.h>
 #include <sys/time.h> // timeval
 #include <sys/stat.h> // mkdir
 #include <sys/socket.h> // socket setsockopt recv send
 #include <sys/wait.h> // wait
+#include <arpa/inet.h> // inet_ntop
 
 #include "../Common/packets.h"
 #include "../Common/command_types.h"
@@ -32,34 +33,69 @@ int main(int argc, char** argv)
     int chldpid;
     int sockfd,
         sockfd_accpt;
-    const struct sockaddr_un addr = { AF_UNIX, "/tmp/ftp.sock" };
     user_lock_array_t locks;
 
-    // CREATE AN ENDPOINT
+    // GET ADDRESS
 
-    if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { 
-        perror("socket()"); 
-        exit(EXIT_FAILURE); 
-    }
+    struct addrinfo hints, *res;
 
-    // DEFINE TIMEOUT FOR MAIN SOCKET
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET; // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+    hints.ai_flags = AI_PASSIVE; // fill in my IP for me
 
-    struct timeval tv;
-    tv.tv_sec = PRNT_TIMEOUT;
-    tv.tv_usec = 0;
-    if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
-        perror("setsockopt()"); 
-        close(sockfd);
+    if (getaddrinfo(NULL, "3490", &hints, &res) != 0) {
+        perror("getaddrinfo()");
         exit(EXIT_FAILURE);
     }
 
-    // BIND THE SOCKET TO ADDRESS
+    struct addrinfo * p;
+    for(p = res; p != NULL; p = p->ai_next) {
+        char ipstr[INET_ADDRSTRLEN];
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *) p->ai_addr;
 
-    if(bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) < 0) { 
-        perror("bind()"); 
-        close(sockfd);
+        inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof(ipstr));
+        printf("Attempting to create socket on %s...\n", ipstr);
+
+        // CREATE AN ENDPOINT
+
+        if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) { 
+            perror("socket()"); 
+            continue;
+        }
+
+        // DEFINE TIMEOUT FOR MAIN SOCKET
+
+        struct timeval tv;
+        tv.tv_sec = PRNT_TIMEOUT;
+        tv.tv_usec = 0;
+        if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+            perror("setsockopt()"); 
+            close(sockfd);
+            freeaddrinfo(res);
+            exit(EXIT_FAILURE);
+        }
+
+        // BIND THE SOCKET TO ADDRESS
+
+        if(bind(sockfd, p->ai_addr, p->ai_addrlen) < 0) { 
+            perror("bind()"); 
+            close(sockfd);
+            continue;
+        }
+
+        break;
+    }
+
+
+    if (p == NULL) {
+        fprintf(stderr, "Server failed to bind\n");
+        freeaddrinfo(res);
         exit(EXIT_FAILURE);
     }
+
+    freeaddrinfo(res);
+    exit(0);
 
     // PREPARE TO ACCEPT CONNECTIONS
 
