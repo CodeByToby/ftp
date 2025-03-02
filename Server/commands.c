@@ -10,6 +10,7 @@
 #include "../Common/packets.h"
 #include "../Common/defines.h"
 #include "../Common/string_helpers.h"
+#include "sockets_and_inet.h"
 #include "user_lock.h"
 #include "commands.h"
 #include "log.h"
@@ -61,6 +62,7 @@ static int resolve_path(const command_t * cmd, response_t * res, const user_sess
 #define get_resolved_path(path) resolve_path(cmd, res, session, path, sizeof(path))
 
 
+
 int ftp_list(response_t * res, const command_t * cmd, const user_session_t * session) {
     char path[BUFFER_SIZE];
     struct stat pathStat;
@@ -72,7 +74,7 @@ int ftp_list(response_t * res, const command_t * cmd, const user_session_t * ses
         return -1;  
     }
 
-    if (get_resolved_path(path) < 0) {
+    if(get_resolved_path(path) < 0) {
         // response is set in function
         return -1;
     }
@@ -92,14 +94,14 @@ int ftp_list(response_t * res, const command_t * cmd, const user_session_t * ses
         struct dirent * entry;
         struct stat entryStat;
 
-        if ((dir = opendir(path)) == NULL) { 
+        if((dir = opendir(path)) == NULL) { 
             log_erro("opendir()", getpid());
             response_set(res, 550, "Requested action not taken. System issue");
             return -1;
         }
 
             while ((entry = readdir(dir)) != NULL) {
-                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                     continue;
                 }
                 
@@ -114,7 +116,7 @@ int ftp_list(response_t * res, const command_t * cmd, const user_session_t * ses
                     return -1;
                 }
 
-                if (S_ISDIR(entryStat.st_mode)) {
+                if(S_ISDIR(entryStat.st_mode)) {
                     printf("%s/\n", entry->d_name);
                 }
                 else {
@@ -154,7 +156,7 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
         return -1;
     }
 
-    if (access(cmd->args, F_OK) < 0) {
+    if(access(cmd->args, F_OK) < 0) {
         response_set(res, 550, "Requested action not taken. Folder not found");
         return -1;
     }
@@ -187,7 +189,7 @@ int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * sess
         return -1;
     }
 
-    if (access(cmd->args, F_OK) == 0) {
+    if(access(cmd->args, F_OK) == 0) {
         response_set(res, 550, "Requested action not taken. Folder already exists");
         return -1;
     }
@@ -227,7 +229,7 @@ int ftp_cwd(response_t * res, const command_t * cmd, user_session_t * session) {
         return -1;
     }
 
-    if (get_resolved_path(path) < 0) {
+    if(get_resolved_path(path) < 0) {
         // response is set in function
         return -1;
     }
@@ -301,8 +303,8 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session, 
     }
 
     // Attempt to lock user
-    if (lock_trywait(locks, session->username) < 0) {
-        if (errno != EAGAIN)
+    if(lock_trywait(locks, session->username) < 0) {
+        if(errno != EAGAIN)
             log_erro("lock_trywait()", getpid());
         response_set(res, 550, "Requested action not taken. User is already logged in");
         return -1;       
@@ -326,8 +328,8 @@ int ftp_pass(response_t * res, const command_t * cmd, user_session_t * session, 
 
     // Update session
     session->state = LOGGED_IN;
-    session->data_sockfd = 0;
-    session->isPassive = FALSE;
+    session->sockfd_data = 0;
+    session->conn_type = DATCONN_UNSET;
     getcwd(session->root, BUFFER_SIZE);
     strncpy(session->dir, "/", 2);
 
@@ -377,10 +379,6 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
 }
 
 int ftp_quit(response_t * res, const user_session_t * session, const user_lock_array_t * locks) {
-    // Unlock user
-    lock_post(locks, session->username);
-    lock_close(locks, session->username);
-
     response_set(res, 221, "Service closing control connection");
     return 0;
 }
@@ -397,18 +395,52 @@ int ftp_help(response_t * res, const command_t * cmd) {
 }
 
 int ftp_pasv(response_t * res, user_session_t * session) {
-    if (session->state != LOGGED_IN) {
+    int sockfd;
+
+    ipv4_addr_t ipv4;
+    port_t data_port;
+    char data_port_str[10];
+
+    if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
         return -1;
     }
 
-    response_set(res, 502, "Command not yet implemented");
+    // Reset data connection
+    if(session->conn_type != DATCONN_UNSET || session->sockfd_data > 0) {
+        close(session->sockfd_data);
+    }
+
+    ipv4_get(&ipv4);
+    port_get(&data_port, data_port_str, 10);
+
+    int i;
+    const int MAX_TRIES = 10;
+
+    for(i = 0; (sockfd = socket_create(data_port_str, -1)) < 0 && i < MAX_TRIES; ++i) {
+        port_get(&data_port, data_port_str, 10);
+        sleep(1);
+    }
+
+    if(i >= MAX_TRIES) {
+        response_set(res, 425, "Can't open data connection");
+        return -1;
+    }
+
+    session->sockfd_data = sockfd;
+    session->conn_type = DATCONN_PASV;
+
+    char msg[BUFFER_SIZE];
+    snprintf(msg, sizeof(msg), "Entering passive mode. %d,%d,%d,%d,%d,%d", 
+            ipv4.p1, ipv4.p2, ipv4.p3, ipv4.p4, data_port.p1, data_port.p2);
+
+    response_set(res, 227, msg);
 
     return 0;
 }
 
 int ftp_port(response_t * res, const command_t * cmd, user_session_t * session) {
-    if (session->state != LOGGED_IN) {
+    if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
         return -1;
     }

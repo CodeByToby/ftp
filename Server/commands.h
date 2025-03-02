@@ -11,17 +11,23 @@ typedef enum {
     LOGGED_IN,
     LOGGED_OUT,
     NEEDS_PASSWORD
-} user_state;
+} user_state_t;
+
+typedef enum {
+    DATCONN_UNSET,
+    DATCONN_PASV,
+    DATCONN_ACTV
+} data_conn_type_t;
 
 typedef struct user_session {
-    user_state state;
+    user_state_t state;
 
     char username[BUFFER_SIZE];
     char root[BUFFER_SIZE];
     char dir[BUFFER_SIZE];
 
-    short isPassive;
-    int data_sockfd;
+    data_conn_type_t conn_type;
+    int sockfd_data;
 } user_session_t;
 
 void response_set(response_t * res, const int code, const char * message);

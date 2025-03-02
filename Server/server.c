@@ -1,21 +1,20 @@
 #include <stdio.h> // perror
 #include <stdlib.h> // exit (exit types)
-#include <unistd.h> // getpid setpgid
+#include <unistd.h> // getpid setpgid close
 #include <string.h> // strncpy memset
 #include <errno.h> // errno
 #include <signal.h> // signal killpg
-#include <netdb.h> // (addrinfo)
 #include <sys/types.h>
 #include <sys/time.h> // timeval
 #include <sys/stat.h> // mkdir
 #include <sys/socket.h> // socket setsockopt recv send
 #include <sys/wait.h> // wait
-#include <arpa/inet.h> // inet_ntop
 
 #include "../Common/packets.h"
 #include "../Common/command_types.h"
 #include "../Common/defines.h"
 #include "commands.h"
+#include "sockets_and_inet.h"
 #include "signals.h"
 #include "user_lock.h"
 #include "log.h"
@@ -25,7 +24,6 @@
 #define PRNT_TIMEOUT 180
 #define CHLD_TIMEOUT 60
 
-static int conn_socket_create(void);
 static int response_send(int sockfd, response_t * res);
 static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks);
 
@@ -40,7 +38,10 @@ int main(int argc, char** argv)
 
     // CREATE SOCKET
 
-    sockfd = conn_socket_create();
+    if((sockfd = socket_create(CONN_PORT, PRNT_TIMEOUT)) < 0) {
+        fprintf(stderr, "Could not create socket\n");
+        exit(EXIT_FAILURE);
+    }
 
     // MAKE A HOME DIRECTORY FOR CLIENTS
 
@@ -114,87 +115,6 @@ int main(int argc, char** argv)
     }
 }
 
-static int conn_socket_create(void) {
-    int sockfd;
-    struct addrinfo hints, * res, * p;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // IPv4
-    hints.ai_socktype = SOCK_STREAM; // TCP
-    hints.ai_flags = AI_PASSIVE; // fill in my IP for me
-
-    if (getaddrinfo(NULL, CONN_PORT, &hints, &res) != 0) {
-        perror("getaddrinfo()");
-        exit(EXIT_FAILURE);
-    }
-
-    for(p = res; p != NULL; p = p->ai_next) {
-
-        // CREATE AN ENDPOINT
-
-        if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) { 
-            perror("socket()"); 
-            continue;
-        }
-
-        // SET SOCKET OPTIONS
-
-        // Time out
-        struct timeval tv;
-        tv.tv_sec = PRNT_TIMEOUT;
-        tv.tv_usec = 0;
-        if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv)) < 0) {
-            perror("setsockopt()"); 
-            close(sockfd);
-            freeaddrinfo(res);
-            exit(EXIT_FAILURE);
-        }
-
-        // Reusing address
-        int yes = 1;
-        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-            perror("setsockopt()"); 
-            close(sockfd);
-            freeaddrinfo(res);
-            exit(EXIT_FAILURE);
-        }
-
-        // BIND THE SOCKET TO ADDRESS
-
-        if(bind(sockfd, p->ai_addr, p->ai_addrlen) < 0) { 
-            perror("bind()"); 
-            close(sockfd);
-            continue;
-        }
-
-        // PREPARE TO ACCEPT CONNECTIONS
-
-        if(listen(sockfd, 10) < 0) { 
-            perror("listen()"); 
-            close(sockfd);
-            continue;
-        }
-
-        break;
-    }
-
-    if (p == NULL) {
-        fprintf(stderr, "Server failed to bind\n");
-        freeaddrinfo(res);
-        exit(EXIT_FAILURE);
-    }
-
-    char ipstr[INET_ADDRSTRLEN];
-    struct sockaddr_in *ip = (struct sockaddr_in *) p->ai_addr;
-
-    inet_ntop(p->ai_family, &(ip->sin_addr), ipstr, sizeof(ipstr));
-    printf("Server running on %s:%s...\n", ipstr, CONN_PORT);
-
-    freeaddrinfo(res);
-
-    return sockfd;
-}
-
 static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
     int nRead;
 
@@ -203,10 +123,7 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
 
     // DEFINE TIMEOUT FOR ACCEPT SOCKET
 
-    struct timeval tv;
-    tv.tv_sec = CHLD_TIMEOUT;
-    tv.tv_usec = 0;
-    if(setsockopt(sockfd_accpt, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+    if(set_timeout(sockfd_accpt, CHLD_TIMEOUT) < 0) {
         log_erro("setsockopt()", getpid());
         close(sockfd_accpt);
         exit(EXIT_FAILURE); 
@@ -233,14 +150,13 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
                 log_erro("recv()", getpid());
             }
 
-            close(sockfd_accpt);
-            exit(EXIT_FAILURE);
+            goto cleanup;
         }
 
-        if (nRead == 0) {
+        if(nRead == 0) {
             log_info("Connection has been terminated by client. Exiting", getpid());
-            close(sockfd_accpt);
-            exit(EXIT_SUCCESS);
+            
+            goto cleanup;
         }
 
         switch (cmd.type) {
@@ -317,6 +233,14 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
             response_send(sockfd_accpt, &res);
             break;
 
+        case PASV:
+            log_comm("PASV", getpid(), &cmd);
+            ftp_pasv(&res, &session);
+            
+            log_resp(getpid(), &res);
+            response_send(sockfd_accpt, &res);
+            break;
+
         case QUIT:
             log_comm("QUIT", getpid(), &cmd);
             ftp_quit(&res, &session, locks);
@@ -324,8 +248,7 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             
-            close(sockfd_accpt);
-            exit(EXIT_SUCCESS);
+            goto cleanup;
 
         case HELP:
         default:
@@ -337,6 +260,17 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
             break;
         }
     }
+
+    cleanup:
+        // Unlock user
+        lock_post(locks, session.username);
+        lock_close(locks, session.username);
+
+        // Close sockets
+        close(sockfd_accpt);
+        close(session.sockfd_data);
+
+        exit(EXIT_SUCCESS);
 }
 
 static int response_send(int sockfd, response_t * res)
