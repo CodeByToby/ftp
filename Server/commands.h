@@ -32,7 +32,8 @@ typedef struct user_session {
 
 void response_set(response_t * res, const int code, const char * message);
 
-int ftp_list(response_t * res, const command_t * cmd, const user_session_t * session);
+int ftp_list(response_t * res, const command_t * cmd, user_session_t * session, struct stat * fdstat);
+int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * session, struct stat * fdstat);
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session);
 int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * session);
 int ftp_pwd(response_t * res, const user_session_t * session);

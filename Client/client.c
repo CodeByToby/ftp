@@ -32,12 +32,11 @@ typedef struct port {
     int p2;
 } port_t;
 
-int sockfd_data = 0;
 
 int main(int argc, char** argv)
 {
     int nSent, nRead;
-    int sockfd;
+    int sockfd, sockfd_data;
 
     if (argc != 2) {
         fprintf(stderr, "Usage: ./client HOSTNAME\n");
@@ -52,6 +51,7 @@ int main(int argc, char** argv)
 
     command_t cmd;
     response_t res;
+    char buffer[BUFFER_SIZE];
 
     while(TRUE) {
         memset(&cmd, 0, sizeof(cmd));
@@ -76,11 +76,12 @@ int main(int argc, char** argv)
         // Receive reply
         nRead = recv(sockfd, (response_t *) &res, sizeof(response_t), 0);
 
-        if (nRead < 0) {
+        if (nRead <= 0) {
             fprintf(stderr, "<ERR> ");
             perror("recv()");
 
             close(sockfd);
+            close(sockfd_data);
             exit(EXIT_FAILURE);
         }
 
@@ -89,8 +90,10 @@ int main(int argc, char** argv)
 
         switch (cmd.type) {
         case PASV:
-            if (res.code != 227)
+            if(res.code != 227)
                 break;
+
+            // ESTABLISH DATA CONNECTION
 
             ipv4_addr_t ipv4;
             port_t data_port;
@@ -104,13 +107,42 @@ int main(int argc, char** argv)
             snprintf(ipv4_str, 100, "%d.%d.%d.%d", ipv4.p1, ipv4.p2, ipv4.p3, ipv4.p4);
             snprintf(data_port_str, 10, "%d", data_port.p1 * 256 + data_port.p2);
 
-            printf("%s:%s\n", ipv4_str, data_port_str);
-
             sockfd_data = data_pasv_socket_create(ipv4_str, data_port_str);
 
             break;
-            
+
         case LIST:
+            if(res.code != 150)
+                break;
+
+            // RECEIVE DATA
+
+            while((nRead = recv(sockfd_data, (char *) &buffer, sizeof(buffer), 0)) > 0) {
+                if(nRead < 0) {
+                    fprintf(stderr, "<ERR> ");
+                    perror("recv()");
+
+                    close(sockfd_data);
+                    break;
+                }
+
+                printf(buffer);
+            }
+            
+            // GRACEFULLY CLOSE CONNECTION
+            
+            if((nRead = recv(sockfd, (response_t *) &res, sizeof(response_t), 0)) < 0) {
+                fprintf(stderr, "<ERR> ");
+                perror("recv()");
+
+                close(sockfd);
+                close(sockfd_data);
+                exit(EXIT_FAILURE);
+            }
+
+            printf("%d, %s\n", res.code, res.message);
+
+            close(sockfd_data);
             break;
         }
 
@@ -122,6 +154,7 @@ int main(int argc, char** argv)
         }
     }
 }
+
 
 static int command_get(command_t * cmd) {
     char buffer[BUFFER_SIZE + 4]; // +4 to account for type
@@ -257,7 +290,7 @@ static int conn_socket_create(char * hostname) {
     struct sockaddr_in *ip = (struct sockaddr_in *) p->ai_addr;
 
     inet_ntop(p->ai_family, &(ip->sin_addr), ipstr, sizeof(ipstr));
-    printf("Server connected on %s:%s...\n", ipstr, CONN_PORT);
+    printf("Client connected on %s:%s...\n", ipstr, CONN_PORT);
 
     freeaddrinfo(res);
 
@@ -307,7 +340,7 @@ static int data_pasv_socket_create(char * hostname, char * port) {
     struct sockaddr_in *ip = (struct sockaddr_in *) p->ai_addr;
 
     inet_ntop(p->ai_family, &(ip->sin_addr), ipstr, sizeof(ipstr));
-    printf("Server connected on %s:%s...\n", ipstr, CONN_PORT);
+    printf("Client connected on %s:%s...\n", ipstr, port);
 
     freeaddrinfo(res);
 

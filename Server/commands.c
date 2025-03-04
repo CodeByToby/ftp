@@ -3,9 +3,13 @@
 #include <unistd.h> // getpid getcwd chdir access rmdir
 #include <string.h> // strncpy memset strlen strtok
 #include <errno.h> // errno
+#include <grp.h> // getgrgid
+#include <pwd.h> // getpwuid
+#include <time.h> // strftime
 #include <dirent.h> // dirent
 #include <sys/types.h>
 #include <sys/stat.h> // mkdir stat
+#include <sys/socket.h> // send
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -15,13 +19,17 @@
 #include "commands.h"
 #include "log.h"
 
+// Working file / directory path
+char fpath[BUFFER_SIZE];
+
+
 void response_set(response_t * res, const int code, const char * message) {
     res->code = code;
     strncpy(res->message, message, BUFFER_SIZE-1);
     res->message[BUFFER_SIZE-1] = '\0';
 }
 
-static int resolve_path(const command_t * cmd, response_t * res, const user_session_t * session, char * resolvedPath, size_t path_len) {
+static int __update_fpath(const command_t * cmd, response_t * res, const user_session_t * session, char * resolvedPath, size_t path_len) {
     char newPath[path_len];
     char oldPath[path_len];
 
@@ -59,81 +67,165 @@ static int resolve_path(const command_t * cmd, response_t * res, const user_sess
     return 0;
 }
 
-#define get_resolved_path(path) resolve_path(cmd, res, session, path, sizeof(path))
+#define update_fpath() __update_fpath(cmd, res, session, fpath, sizeof(fpath))
 
 
+static int dirent_parse(const struct stat * fstat, const  char * name, char * result) {
+    char permissions[11];
+    int links;
+    struct passwd * owner;
+    struct group * grp;
+    off_t size;
+    char mod_time[20];
+    struct tm *time_info;
 
-int ftp_list(response_t * res, const command_t * cmd, const user_session_t * session) {
-    char path[BUFFER_SIZE];
-    struct stat pathStat;
+    // Get file type and permissions
+    permissions[0] = (S_ISDIR(fstat->st_mode)) ? 'd' : '-';
+    permissions[1] = (fstat->st_mode & S_IRUSR) ? 'r' : '-';
+    permissions[2] = (fstat->st_mode & S_IWUSR) ? 'w' : '-';
+    permissions[3] = (fstat->st_mode & S_IXUSR) ? 'x' : '-';
+    permissions[4] = (fstat->st_mode & S_IRGRP) ? 'r' : '-';
+    permissions[5] = (fstat->st_mode & S_IWGRP) ? 'w' : '-';
+    permissions[6] = (fstat->st_mode & S_IXGRP) ? 'x' : '-';
+    permissions[7] = (fstat->st_mode & S_IROTH) ? 'r' : '-';
+    permissions[8] = (fstat->st_mode & S_IWOTH) ? 'w' : '-';
+    permissions[9] = (fstat->st_mode & S_IXOTH) ? 'x' : '-';
+    permissions[10] = '\0';
 
-    memset(path, 0, sizeof(path));
+    // Get nr of links
+    links = fstat->st_nlink;
+
+    // Get the owner and group names
+    owner = getpwuid(fstat->st_uid);
+    grp = getgrgid(fstat->st_gid);
+
+    // Get the file size
+    size = fstat->st_size;
+
+    // Get the modification time
+    time_info = localtime(&fstat->st_mtime);
+    strftime(mod_time, sizeof(mod_time), "%b %d %H:%M", time_info);
+
+    // Print the formatted output
+    sprintf(result, "%s %2d %-8s %-8s %5lld %s %s\n",
+           permissions, links, owner ? owner->pw_name : "unknown", 
+           grp ? grp->gr_name : "unknown", (long long)size, mod_time, name);
+
+    return 0;
+}
+ 
+int ftp_list(response_t * res, const command_t * cmd, user_session_t * session, struct stat * fstat) {
     
     if(session->state != LOGGED_IN) {
-        response_set(res, 530, "User not logged in");
-        return -1;  
+        response_set(res, 530, "User not logged in");   
+        return -1;
     }
 
-    if(get_resolved_path(path) < 0) {
+    if(session->conn_type == DATCONN_UNSET || session->sockfd_data <= 0) {
+        response_set(res, 425, "Can't open data connection");
+        return -1; 
+    }
+
+    if(update_fpath() < 0) {
         // response is set in function
         return -1;
     }
 
-    if(stat(path, &pathStat) != 0) {
+    if(stat(fpath, fstat) != 0) {
         log_erro("stat()", getpid());
         response_set(res, 550, "Requested action not taken. System issue");
         return -1;
     }
 
-    if(S_ISDIR(pathStat.st_mode)) {
-        // LIST ALL FILES AND SUBDIRECTORIES
+    response_set(res, 150, "File status okay; about to open data connection");
 
-        char entryPath[BUFFER_SIZE];
+    return 0;
+}
 
+int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * session, struct stat * fstat) {
+    int retval = 0;
+    int sockfd_data_accpt;
+
+    // ACCEPT DATA CONNECTION
+
+    if((sockfd_data_accpt = accept(session->sockfd_data, NULL, NULL)) <= 0) {
+        log_erro("accept()", 0);
+        response_set(res, 425, "Can't open data connection");
+
+        retval = -1;
+        goto cleanup_list;
+    }
+
+    // LIST ALL FILES AND SUBDIRECTORIES
+
+    if(S_ISDIR(fstat->st_mode)) {
         DIR * dir;
         struct dirent * entry;
-        struct stat entryStat;
+        struct stat entry_stat;
+        char entry_path[BUFFER_SIZE];
+        char entry_parsed[BUFFER_SIZE];
 
-        if((dir = opendir(path)) == NULL) { 
+        if((dir = opendir(fpath)) == NULL) { 
             log_erro("opendir()", getpid());
             response_set(res, 550, "Requested action not taken. System issue");
-            return -1;
-        }
 
+            goto cleanup_list;
+        }
             while ((entry = readdir(dir)) != NULL) {
                 if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                     continue;
                 }
                 
-                if(snprintf(entryPath, sizeof(entryPath), "%s/%s", path, entry->d_name) > sizeof(entryPath)) { 
-                    response_set(res, 550, "Requested action not taken. Filename too long to output");
-                    return -1;
+                if(snprintf(entry_path, sizeof(entry_path), "%s/%s", fpath, entry->d_name) > sizeof(entry_path)) { 
+                    response_set(res, 451, "Requested action aborted: local error in processing");
+                    log_erro("snprintf()", getpid());
+
+                    retval = -1;
+                    goto cleanup_list;
                 }
 
-                if(stat(entryPath, &entryStat) != 0) {
+                if(stat(entry_path, &entry_stat) != 0) {
+                    response_set(res, 451, "Requested action aborted: local error in processing");
                     log_erro("stat()", getpid());
-                    response_set(res, 550, "Requested action not taken. System issue");
-                    return -1;
+
+                    retval = -1;
+                    goto cleanup_list;
                 }
 
-                if(S_ISDIR(entryStat.st_mode)) {
-                    printf("%s/\n", entry->d_name);
+                if (dirent_parse(&entry_stat, entry->d_name, entry_parsed) < 0) {
+                    response_set(res, 451, "Requested action aborted: local error in processing");
+                    log_erro("dirent_parse()", getpid());
+
+                    retval = -1;
+                    goto cleanup_list;
                 }
-                else {
-                    printf("%s\n", entry->d_name);
+
+                int nSent = send(sockfd_data_accpt, entry_parsed, sizeof(entry_parsed), 0);
+
+                if(nSent < 0 || nSent != sizeof(entry_parsed)) {
+                    response_set(res, 426, "Connection closed; transfer aborted");
+                    log_erro("send()", getpid());
+
+                    retval = -1;
+                    goto cleanup_list;
                 }
             }
 
-        closedir(dir);
+        response_set(res, 226, "Closing data connection. Requested file action successful");
 
-        response_set(res, 200, path);
-        return 0;
+        cleanup_list:
+            close(sockfd_data_accpt);
+            close(session->sockfd_data);
+            session->sockfd_data = 0;
+            session->conn_type = DATCONN_UNSET;
+
+            return retval;
     }
 
-    else {
-        // GET INFO ON FILE
+    // ... OR GET INFO ON FILE
 
-        response_set(res, 200, path);
+    else {
+        response_set(res, 200, fpath);
         return 0;
     }
 }
@@ -162,8 +254,14 @@ int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * sess
     }
 
     if(rmdir(cmd->args)) {
-        log_erro("rmdir()", getpid());
-        response_set(res, 550, "Requested action not taken. System issue");
+        if(errno == ENOTDIR)
+            response_set(res, 550, "Requested action not taken. Not a directory");
+        else if(errno == ENOTEMPTY)
+            response_set(res, 550, "Requested action not taken. Not empty");
+        else {
+            log_erro("rmdir()", getpid());
+            response_set(res, 550, "Requested action not taken. System issue");
+        }
         return -1;
     }
 
@@ -215,10 +313,6 @@ int ftp_pwd(response_t * res, const user_session_t * session) {
 }
 
 int ftp_cwd(response_t * res, const command_t * cmd, user_session_t * session) {
-    char path[BUFFER_SIZE];
-
-    memset(path, 0, sizeof(path));
-
     if(session->state != LOGGED_IN) {
         response_set(res, 530, "User not logged in");
         return -1;
@@ -229,20 +323,20 @@ int ftp_cwd(response_t * res, const command_t * cmd, user_session_t * session) {
         return -1;
     }
 
-    if(get_resolved_path(path) < 0) {
+    if(update_fpath() < 0) {
         // response is set in function
         return -1;
     }
 
     // Change directory
-    if(chdir(path) < 0) {
+    if(chdir(fpath) < 0) {
         log_erro("chdir()", getpid());
         response_set(res, 550, "Failed to change directory");
         return -1;
     }
 
     // Update directory in session
-    const char * newDir = path + strlen(session->root);
+    const char * newDir = fpath + strlen(session->root);
 
     if(newDir[0] != '\0') {
         strncpy(session->dir, newDir, BUFFER_SIZE-1);

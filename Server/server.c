@@ -6,7 +6,7 @@
 #include <signal.h> // signal killpg
 #include <sys/types.h>
 #include <sys/time.h> // timeval
-#include <sys/stat.h> // mkdir
+#include <sys/stat.h> // mkdir stat
 #include <sys/socket.h> // socket setsockopt recv send
 #include <sys/wait.h> // wait
 
@@ -137,6 +137,7 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
     session.state = LOGGED_OUT;
 
     while(TRUE) {
+        int retval = 0;
         memset(&cmd, 0, sizeof(cmd));
         memset(&res, 0, sizeof(res));
 
@@ -177,11 +178,21 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
             break;
 
         case LIST:
+            struct stat fdstat;
+            
             log_comm("LIST", getpid(), &cmd);
-            ftp_list(&res, &cmd, &session);
+            retval = ftp_list(&res, &cmd, &session, &fdstat);
 
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
+
+            if(retval == 0) {
+                ftp_list_data(&res, &cmd, &session, &fdstat);
+
+                log_resp(getpid(), &res);
+                response_send(sockfd_accpt, &res);
+            }
+
             break;
 
         case RMD:
