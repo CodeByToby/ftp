@@ -254,7 +254,7 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
 
         case QUIT:
             log_comm("QUIT", getpid(), &cmd);
-            ftp_quit(&res, &session, locks);
+            ftp_quit(&res);
 
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);

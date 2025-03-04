@@ -490,7 +490,7 @@ int ftp_user(response_t * res, const command_t * cmd, user_session_t * session) 
     return 0;
 }
 
-int ftp_quit(response_t * res, const user_session_t * session, const user_lock_array_t * locks) {
+int ftp_quit(response_t * res) {
     response_set(res, 221, "Service closing control connection");
     return 0;
 }
@@ -502,7 +502,7 @@ int ftp_help(response_t * res, const command_t * cmd) {
         return -1;
     }
 
-    response_set(res, 214, "Commands supported:\n\tNOOP\tQUIT\tHELP\n\tPASS\tUSER\n\tPWD\tMKD\tRMD\tCWD\tCDUP\n");
+    response_set(res, 214, "Commands supported:\n\tNOOP\tQUIT\tHELP\n\tPASS\tUSER\n\tPWD\tMKD\tRMD\tCWD\tCDUP\n\tPASV\n\tLIST\n");
     return 0;
 }
 
