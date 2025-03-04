@@ -70,7 +70,7 @@ static int __update_fpath(const command_t * cmd, response_t * res, const user_se
 #define update_fpath() __update_fpath(cmd, res, session, fpath, sizeof(fpath))
 
 
-static int dirent_parse(const struct stat * fstat, const  char * name, char * result) {
+static int stat_parse(const struct stat * fstat, const char * name, char * result) {
     char permissions[11];
     int links;
     struct passwd * owner;
@@ -158,12 +158,13 @@ int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * sess
 
     // LIST ALL FILES AND SUBDIRECTORIES
 
+    char res_buffer[BUFFER_SIZE];
+
     if(S_ISDIR(fstat->st_mode)) {
         DIR * dir;
         struct dirent * entry;
         struct stat entry_stat;
         char entry_path[BUFFER_SIZE];
-        char entry_parsed[BUFFER_SIZE];
 
         if((dir = opendir(fpath)) == NULL) { 
             log_erro("opendir()", getpid());
@@ -192,17 +193,17 @@ int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * sess
                     goto cleanup_list;
                 }
 
-                if (dirent_parse(&entry_stat, entry->d_name, entry_parsed) < 0) {
+                if(stat_parse(&entry_stat, entry->d_name, res_buffer) < 0) {
                     response_set(res, 451, "Requested action aborted: local error in processing");
-                    log_erro("dirent_parse()", getpid());
+                    log_erro("stat_parse()", getpid());
 
                     retval = -1;
                     goto cleanup_list;
                 }
 
-                int nSent = send(sockfd_data_accpt, entry_parsed, sizeof(entry_parsed), 0);
+                int nSent = send(sockfd_data_accpt, res_buffer, sizeof(res_buffer), 0);
 
-                if(nSent < 0 || nSent != sizeof(entry_parsed)) {
+                if(nSent < 0 || nSent != sizeof(res_buffer)) {
                     response_set(res, 426, "Connection closed; transfer aborted");
                     log_erro("send()", getpid());
 
@@ -212,22 +213,39 @@ int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * sess
             }
 
         response_set(res, 226, "Closing data connection. Requested file action successful");
-
-        cleanup_list:
-            close(sockfd_data_accpt);
-            close(session->sockfd_data);
-            session->sockfd_data = 0;
-            session->conn_type = DATCONN_UNSET;
-
-            return retval;
     }
 
     // ... OR GET INFO ON FILE
 
     else {
-        response_set(res, 200, fpath);
-        return 0;
+        if(stat_parse(fstat, cmd->args, res_buffer) < 0) {
+                response_set(res, 451, "Requested action aborted: local error in processing");
+                log_erro("stat_parse()", getpid());
+
+                retval = -1;
+                goto cleanup_list;
+            }
+
+            int nSent = send(sockfd_data_accpt, res_buffer, sizeof(res_buffer), 0);
+
+            if(nSent < 0 || nSent != sizeof(res_buffer)) {
+                response_set(res, 426, "Connection closed; transfer aborted");
+                log_erro("send()", getpid());
+
+                retval = -1;
+                goto cleanup_list;
+            }
+
+        response_set(res, 226, "Closing data connection. Requested file action successful");
     }
+
+    cleanup_list:
+        close(sockfd_data_accpt);
+        close(session->sockfd_data);
+        session->sockfd_data = 0;
+        session->conn_type = DATCONN_UNSET;
+
+        return retval;
 }
 
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session) {
