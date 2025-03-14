@@ -254,18 +254,55 @@ int ftp_retr(response_t * res, const command_t * cmd, user_session_t * session, 
         return -1;
     }
 
+    if(session->conn_type == DATCONN_UNSET || session->sockfd_data <= 0) {
+        response_set(res, 425, "Can't open data connection");
+        return -1; 
+    }
+
     if(cmd->args[0] == '\0') {
         response_set(res, 501, "Syntax error in parameters or arguments. No argument");
         return -1;
     }
 
-    response_set(res, 502, "Command not yet implemented");
+    if(update_fpath() < 0) {
+        // response is set in function
+        return -1;
+    }
+
+    if((*fptr = fopen(fpath, "r")) == NULL) {
+        response_set(res, 550, "Requested action not taken. File unavailable");
+        return -1;   
+    }
+
+    response_set(res, 150, "File status okay; about to open data connection");
 
     return 0;
 }
 
 int ftp_retr_data(response_t * res, const command_t * cmd, user_session_t * session, FILE ** fptr) {
-    return 0;
+    int retval = 0;
+    int sockfd_data_accpt;
+
+    // ACCEPT DATA CONNECTION
+
+    if((sockfd_data_accpt = accept(session->sockfd_data, NULL, NULL)) <= 0) {
+        log_erro("accept()", 0);
+        response_set(res, 425, "Can't open data connection");
+
+        retval = -1;
+        goto cleanup_list;
+    }
+
+    response_set(res, 226, "Closing data connection. Requested file action successful");
+
+    cleanup_list:
+        fclose(*fptr);
+        close(sockfd_data_accpt);
+        close(session->sockfd_data);
+        session->sockfd_data = 0;
+        session->conn_type = DATCONN_UNSET;
+
+        return retval;
 }
 
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session) {

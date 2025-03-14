@@ -144,6 +144,40 @@ int main(int argc, char** argv)
 
             close(sockfd_data);
             break;
+
+        case RETR:
+            if(res.code != 150)
+                break;
+
+            // RECEIVE DATA
+
+            while((nRead = recv(sockfd_data, (char *) &buffer, sizeof(buffer), 0)) > 0) {
+                if(nRead < 0) {
+                    fprintf(stderr, "<ERR> ");
+                    perror("recv()");
+
+                    close(sockfd_data);
+                    break;
+                }
+
+                printf(buffer);
+            }
+            
+            // GRACEFULLY CLOSE CONNECTION
+            
+            if((nRead = recv(sockfd, (response_t *) &res, sizeof(response_t), 0)) < 0) {
+                fprintf(stderr, "<ERR> ");
+                perror("recv()");
+
+                close(sockfd);
+                close(sockfd_data);
+                exit(EXIT_FAILURE);
+            }
+
+            printf("%d, %s\n", res.code, res.message);
+
+            close(sockfd_data);
+            break;
         }
 
         // Quit

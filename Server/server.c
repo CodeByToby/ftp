@@ -211,8 +211,6 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
                 response_send(sockfd_accpt, &res);
             }
 
-            fclose(fptr);
-
             break;
 
         case RMD:
