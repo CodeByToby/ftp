@@ -149,7 +149,7 @@ int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * sess
     // ACCEPT DATA CONNECTION
 
     if((sockfd_data_accpt = accept(session->sockfd_data, NULL, NULL)) <= 0) {
-        log_erro("accept()", 0);
+        log_erro("accept()", getpid());
         response_set(res, 425, "Can't open data connection");
 
         retval = -1;
@@ -286,11 +286,41 @@ int ftp_retr_data(response_t * res, const command_t * cmd, user_session_t * sess
     // ACCEPT DATA CONNECTION
 
     if((sockfd_data_accpt = accept(session->sockfd_data, NULL, NULL)) <= 0) {
-        log_erro("accept()", 0);
+        log_erro("accept()", getpid());
         response_set(res, 425, "Can't open data connection");
 
         retval = -1;
         goto cleanup_list;
+    }
+
+    // SEND CONTENTS OF FILE
+
+    char res_buffer[BUFFER_SIZE];
+
+    while(feof(*fptr) == 0) {
+        memset(res_buffer, 0, sizeof(res_buffer));
+
+        fread(res_buffer, sizeof(res_buffer), 1, *fptr);
+
+        if(ferror(*fptr) != 0) {
+            log_erro("fread()", getpid());
+            response_set(res, 451, "Requested action aborted. Local error in processing");
+
+            retval = -1;
+            goto cleanup_list;
+        }
+
+        if(res_buffer[0] != '\0') {
+            int nSent = send(sockfd_data_accpt, res_buffer, sizeof(res_buffer), 0);
+
+            if(nSent < 0 || nSent != sizeof(res_buffer)) {
+                response_set(res, 426, "Connection closed; transfer aborted");
+                log_erro("send()", getpid());
+
+                retval = -1;
+                goto cleanup_list;
+            }
+        }
     }
 
     response_set(res, 226, "Closing data connection. Requested file action successful");

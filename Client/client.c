@@ -149,6 +149,11 @@ int main(int argc, char** argv)
             if(res.code != 150)
                 break;
 
+            // CREATE (OR OVERWRITE) FILE
+            FILE * fptr;
+
+            fptr = fopen(cmd.args, "w");
+
             // RECEIVE DATA
 
             while((nRead = recv(sockfd_data, (char *) &buffer, sizeof(buffer), 0)) > 0) {
@@ -156,11 +161,21 @@ int main(int argc, char** argv)
                     fprintf(stderr, "<ERR> ");
                     perror("recv()");
 
+                    fclose(fptr);
                     close(sockfd_data);
                     break;
                 }
 
-                printf(buffer);
+                fwrite(buffer, sizeof(buffer), 1, fptr);
+
+                if (ferror(fptr)) {
+                    fprintf(stderr, "<ERR> ");
+                    perror("fwrite()");
+
+                    fclose(fptr);
+                    close(sockfd_data);
+                    break;
+                }
             }
             
             // GRACEFULLY CLOSE CONNECTION
@@ -169,6 +184,7 @@ int main(int argc, char** argv)
                 fprintf(stderr, "<ERR> ");
                 perror("recv()");
 
+                fclose(fptr);
                 close(sockfd);
                 close(sockfd_data);
                 exit(EXIT_FAILURE);
@@ -176,6 +192,7 @@ int main(int argc, char** argv)
 
             printf("%d, %s\n", res.code, res.message);
 
+            fclose(fptr);
             close(sockfd_data);
             break;
         }
