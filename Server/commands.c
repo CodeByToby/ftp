@@ -589,7 +589,7 @@ int ftp_help(response_t * res, const command_t * cmd) {
         return -1;
     }
 
-    response_set(res, 214, "Commands supported:\n\tNOOP\tQUIT\tHELP\n\tPASS\tUSER\n\tPWD\tMKD\tRMD\tCWD\tCDUP\n\tPASV\n\tLIST\n");
+    response_set(res, 214, "Commands supported:\n\tNOOP\tQUIT\tHELP\n\tPASS\tUSER\n\tRETR\n\tPWD\tMKD\tRMD\tCWD\tCDUP\n\tPASV\n\tLIST\n");
     return 0;
 }
 
