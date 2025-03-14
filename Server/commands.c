@@ -248,6 +248,26 @@ int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * sess
         return retval;
 }
 
+int ftp_retr(response_t * res, const command_t * cmd, user_session_t * session, FILE ** fptr) {
+    if(session->state != LOGGED_IN) {
+        response_set(res, 530, "User not logged in");
+        return -1;
+    }
+
+    if(cmd->args[0] == '\0') {
+        response_set(res, 501, "Syntax error in parameters or arguments. No argument");
+        return -1;
+    }
+
+    response_set(res, 502, "Command not yet implemented");
+
+    return 0;
+}
+
+int ftp_retr_data(response_t * res, const command_t * cmd, user_session_t * session, FILE ** fptr) {
+    return 0;
+}
+
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session) {
     const char allowedCharacters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
     
