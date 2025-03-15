@@ -36,6 +36,8 @@ int ftp_list(response_t * res, const command_t * cmd, user_session_t * session, 
 int ftp_list_data(response_t * res, const command_t * cmd, user_session_t * session, struct stat * fdstat);
 int ftp_retr(response_t * res, const command_t * cmd, user_session_t * session, FILE ** fptr);
 int ftp_retr_data(response_t * res, const command_t * cmd, user_session_t * session, FILE ** fptr);
+int ftp_stor(response_t * res, command_t * cmd, user_session_t * session, FILE ** fptr);
+int ftp_stor_data(response_t * res, const command_t * cmd, user_session_t * session, FILE ** fptr);
 int ftp_rmd(response_t * res, const command_t * cmd, const user_session_t * session);
 int ftp_mkd(response_t * res, const command_t * cmd, const user_session_t * session);
 int ftp_pwd(response_t * res, const user_session_t * session);

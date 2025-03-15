@@ -196,21 +196,41 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
             break;
 
         case RETR:
-            FILE * fptr;
+            FILE * fptr_retr;
 
             log_comm("RETR", getpid(), &cmd);
-            retval = ftp_retr(&res, &cmd, &session, &fptr);
+            retval = ftp_retr(&res, &cmd, &session, &fptr_retr);
 
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
 
             if(retval == 0) {
-                ftp_retr_data(&res, &cmd, &session, &fptr);
+                ftp_retr_data(&res, &cmd, &session, &fptr_retr);
 
                 log_resp(getpid(), &res);
                 response_send(sockfd_accpt, &res);
             }
 
+            fptr_retr = 0;
+            break;
+
+        case STOR:
+            FILE * fptr_stor;
+
+            log_comm("STOR", getpid(), &cmd);
+            retval = ftp_stor(&res, &cmd, &session, &fptr_stor);
+
+            log_resp(getpid(), &res);
+            response_send(sockfd_accpt, &res);
+
+            if(retval == 0) {
+                ftp_stor_data(&res, &cmd, &session, &fptr_stor);
+
+                log_resp(getpid(), &res);
+                response_send(sockfd_accpt, &res);
+            }
+
+            fptr_stor = 0;
             break;
 
         case RMD:

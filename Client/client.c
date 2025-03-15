@@ -65,7 +65,7 @@ int main(int argc, char** argv)
         // Send command
         nSent = send(sockfd, (void*) &cmd, sizeof(command_t), 0);
 
-        if (nSent < 0 || nSent != sizeof(command_t)) {            
+        if (nSent < 0 || nSent != sizeof(command_t)) {
             fprintf(stderr, "<ERR> ");
             perror("send()");
 
@@ -117,7 +117,7 @@ int main(int argc, char** argv)
 
             // RECEIVE DATA
 
-            while((nRead = recv(sockfd_data, (char *) &buffer, sizeof(buffer), 0)) > 0) {
+            while((nRead = recv(sockfd_data, (char *) buffer, sizeof(buffer), 0)) > 0) {
                 if(nRead < 0) {
                     fprintf(stderr, "<ERR> ");
                     perror("recv()");
@@ -150,50 +150,107 @@ int main(int argc, char** argv)
                 break;
 
             // CREATE (OR OVERWRITE) FILE
-            FILE * fptr;
 
-            fptr = fopen(cmd.args, "w");
+            FILE * fptr_retr;
+            fptr_retr = fopen(cmd.args, "w");
 
-            // RECEIVE DATA
+                // RECEIVE DATA
 
-            while((nRead = recv(sockfd_data, (char *) &buffer, sizeof(buffer), 0)) > 0) {
-                if(nRead < 0) {
-                    fprintf(stderr, "<ERR> ");
-                    perror("recv()");
+                sleep(1); // Hacky way of preventing recv before server sends data
 
-                    fclose(fptr);
-                    close(sockfd_data);
-                    break;
+                while((nRead = recv(sockfd_data, (char *) buffer, sizeof(buffer) - 1, 0)) > 0) {
+                    fwrite(buffer, strlen(buffer), 1, fptr_retr);
+
+                    if (ferror(fptr_retr)) {
+                        fprintf(stderr, "<ERR> ");
+                        perror("fwrite()");
+
+                        break;
+                    }
                 }
 
-                fwrite(buffer, sizeof(buffer), 1, fptr);
-
-                if (ferror(fptr)) {
-                    fprintf(stderr, "<ERR> ");
-                    perror("fwrite()");
-
-                    fclose(fptr);
-                    close(sockfd_data);
-                    break;
-                }
-            }
+                shutdown(sockfd_data, SHUT_RD);
             
+            fclose(fptr_retr);
+            close(sockfd_data);
+
+            if(nRead < 0) {
+                fprintf(stderr, "<ERR> ");
+                perror("recv()");
+
+                break;
+            }
+
             // GRACEFULLY CLOSE CONNECTION
             
             if((nRead = recv(sockfd, (response_t *) &res, sizeof(response_t), 0)) < 0) {
                 fprintf(stderr, "<ERR> ");
                 perror("recv()");
 
-                fclose(fptr);
+                close(sockfd);
+                exit(EXIT_FAILURE);
+            }
+
+            printf("%d, %s\n", res.code, res.message);
+
+            break;
+
+        case STOR:
+            if(res.code != 150)
+                break;
+
+            // OPEN FILE FOR READING
+
+            FILE * fptr_stor;
+            fptr_stor = fopen(cmd.args, "r");
+
+                // SEND DATA
+
+                while(feof(fptr_stor) == 0) {
+                    memset(buffer, 0, sizeof(buffer));
+
+                    fread(buffer, sizeof(buffer) - 1, 1, fptr_stor);
+
+                    if(ferror(fptr_stor) != 0) {
+                        fprintf(stderr, "<ERR> ");
+                        perror("fread()");
+
+                        break;
+                    }
+
+                    if(buffer[0] != '\0') {
+                        int nSent = send(sockfd_data, (void *) buffer, sizeof(buffer) - 1, 0);
+
+                        if(nSent < 0 || nSent != sizeof(buffer) - 1) {
+                            fprintf(stderr, "<ERR> ");
+                            perror("send()");
+
+                            fclose(fptr_stor);
+                            close(sockfd);
+                            close(sockfd_data);
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                }
+
+                shutdown(sockfd_data, SHUT_WR);
+
+            fclose(fptr_stor);
+            close(sockfd_data);
+
+            // GRACEFULLY CLOSE CONNECTION
+            
+            if((nRead = recv(sockfd, (response_t *) &res, sizeof(response_t), 0)) < 0) {
+                fprintf(stderr, "<ERR> ");
+                perror("recv()");
+
                 close(sockfd);
                 close(sockfd_data);
                 exit(EXIT_FAILURE);
             }
 
             printf("%d, %s\n", res.code, res.message);
-
-            fclose(fptr);
-            close(sockfd_data);
+            
             break;
         }
 
@@ -258,6 +315,13 @@ static int command_get(command_t * cmd) {
         cmd->type = RETR;
     } else if (strncmp(cmdTypeRaw, "STOR", 4) == 0) {
         cmd->type = STOR;
+
+        if(access(cmd->args, F_OK) < 0) {
+            fprintf(stderr, "<ERR> ");
+            perror("access()");
+
+            return -1;
+        }
     } else if (strncmp(cmdTypeRaw, "STOU", 4) == 0) {
         cmd->type = STOU;
     } else if (strncmp(cmdTypeRaw, "APPE", 4) == 0) {
