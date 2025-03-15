@@ -3,14 +3,14 @@
 #include <errno.h> // errno
 #include <time.h> // time localtime
 
-#include "../Common/packets.h"
+#include "log.h"
 
 #define LOG_OUT stdout
 #define LOG_ERR stderr
 
 static void tstamp(FILE * stream);
 
-void log_info(char * msg, int pid) {
+void log_info(const char * msg, const int pid) {
     tstamp(LOG_OUT);
 
     if (pid > 0)
@@ -19,7 +19,7 @@ void log_info(char * msg, int pid) {
         fprintf(LOG_OUT, " - [SERVER / INFO] - %s\n", msg);
 }
 
-void log_erro(char * msg, int pid) {
+void log_erro(const char * msg, const int pid) {
     tstamp(LOG_ERR);
 
     if (pid > 0)
@@ -28,13 +28,13 @@ void log_erro(char * msg, int pid) {
         fprintf(LOG_ERR, " - [SERVER / ERRO] - %s: %s\n", msg, strerror(errno));
 }
 
-void log_comm(char * msg, int pid, command_t * cmd) {
+void log_comm(const char * msg, const int pid, const command_t * cmd) {
     tstamp(LOG_OUT);
 
     printf(" - [CLIENT_%d / COMM] - %s command received: %s %s\n", pid, msg, msg, cmd->args);
 }
 
-void log_resp(int pid, response_t * res) {
+void log_resp(const int pid, const response_t * res) {
     tstamp(LOG_OUT);
 
     printf(" - [CLIENT_%d / RESP] - %d %s\n", pid, res->code, res->message);
