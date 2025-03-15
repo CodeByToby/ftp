@@ -53,7 +53,10 @@ int main(int argc, char** argv)
 
     // CAP NR OF CONNECTIONS PER USER
 
-    create_user_locks(&locks, sockfd, PER_USR_CLIENT_CAP);
+    if (create_user_locks(&locks, PER_USR_CLIENT_CAP) < 0) {
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
 
     // SIGNAL HANDLING
 

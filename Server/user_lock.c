@@ -15,15 +15,15 @@ static int generate_lockname(char * lockname, size_t lockname_size, const char *
     return snprintf(lockname, lockname_size, "/ftp-%s", username);
 }
 
-void create_user_locks(user_lock_array_t * locks, int sockfd, int cap) {
+int create_user_locks(user_lock_array_t * locks, int cap) {
     FILE *fp;
     int nUsers = 0;
     char buffer[BUFFER_SIZE];
 
     if ((fp = fopen(CREDENTIALS_FILE, "r")) == NULL) {
         perror("fopen()");
-        close(sockfd);
-        exit(EXIT_FAILURE);
+
+        return -1;
     }
 
         // Count all users
@@ -42,22 +42,24 @@ void create_user_locks(user_lock_array_t * locks, int sockfd, int cap) {
 
             if(generate_lockname(lockname, sizeof(lockname), username) > sizeof(lockname)) {
                 perror("snprintf(): Failed to create user locks:"); 
-                close(sockfd);
                 free(locks->arr);
-                exit(EXIT_FAILURE);
+                
+                return -1;
             }
 
             strncpy(locks->arr[i].username, username, BUFFER_SIZE);
 
-            if((locks->arr[i].lock = sem_open(lockname, O_CREAT | O_EXCL, 0600, cap)) == SEM_FAILED) {
+            if((locks->arr[i].lock = sem_open(lockname, O_CREAT, 0600, cap)) == SEM_FAILED) {
                 perror("sem_open(): Failed to create user locks:");
-                close(sockfd);
                 free(locks->arr);
-                exit(EXIT_FAILURE);
+            
+                return -1;
             }
         }
 
     fclose(fp);
+
+    return 0;
 }
 
 void destroy_user_locks(user_lock_array_t * locks) {

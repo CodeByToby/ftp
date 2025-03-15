@@ -18,7 +18,7 @@ typedef struct user_lock_array {
     int size;
 } user_lock_array_t;
 
-void create_user_locks(user_lock_array_t * locks, int sockfd, int cap);
+int create_user_locks(user_lock_array_t * locks, int cap);
 void destroy_user_locks(user_lock_array_t * locks);
 
 int lock_trywait(const user_lock_array_t * locks, const char * username);
