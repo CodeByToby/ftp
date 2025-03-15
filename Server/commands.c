@@ -1,6 +1,6 @@
-#include <stdio.h> // printf fopen fclose opendir
+#include <stdio.h> // printf fopen fclose fwrite fread opendir ferror feof
 #include <stdlib.h> // realpath NULL
-#include <unistd.h> // getpid getcwd chdir access rmdir
+#include <unistd.h> // getpid getcwd chdir access rmdir sleep
 #include <string.h> // strncpy memset strlen strtok
 #include <errno.h> // errno
 #include <grp.h> // getgrgid
@@ -9,7 +9,7 @@
 #include <dirent.h> // dirent
 #include <sys/types.h>
 #include <sys/stat.h> // mkdir stat
-#include <sys/socket.h> // send
+#include <sys/socket.h> // send shutdown
 
 #include "../Common/packets.h"
 #include "../Common/defines.h"
@@ -67,6 +67,8 @@ static int __update_fpath(const command_t * cmd, response_t * res, const user_se
     return 0;
 }
 
+/// @brief Update `fpath` – working file / directory path. Uses data from `cmd.args` and `session.root`
+/// @return 0 on success, -1 on errors.
 #define update_fpath() __update_fpath(cmd, res, session, fpath, sizeof(fpath))
 
 
@@ -115,9 +117,8 @@ static int stat_parse(const struct stat * fstat, const char * name, char * resul
 }
  
 int ftp_list(response_t * res, const command_t * cmd, user_session_t * session, struct stat * fstat) {
-    
     if(session->state != LOGGED_IN) {
-        response_set(res, 530, "User not logged in");   
+        response_set(res, 530, "User not logged in");
         return -1;
     }
 

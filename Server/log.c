@@ -10,6 +10,9 @@
 
 static void tstamp(FILE * stream);
 
+/// @brief Log a formatted message – Info.
+/// @param msg Content of the log.
+/// @param pid PID of the process.
 void log_info(const char * msg, const int pid) {
     tstamp(LOG_OUT);
 
@@ -19,6 +22,9 @@ void log_info(const char * msg, const int pid) {
         fprintf(LOG_OUT, " - [SERVER / INFO] - %s\n", msg);
 }
 
+/// @brief Log a formatted message – Error.
+/// @param msg Content of the log.
+/// @param pid PID of the process.
 void log_erro(const char * msg, const int pid) {
     tstamp(LOG_ERR);
 
@@ -28,12 +34,18 @@ void log_erro(const char * msg, const int pid) {
         fprintf(LOG_ERR, " - [SERVER / ERRO] - %s: %s\n", msg, strerror(errno));
 }
 
+/// @brief Log a formatted message – Command.
+/// @param msg Content of the log.
+/// @param pid PID of the process.
 void log_comm(const char * msg, const int pid, const command_t * cmd) {
     tstamp(LOG_OUT);
 
     printf(" - [CLIENT_%d / COMM] - %s command received: %s %s\n", pid, msg, msg, cmd->args);
 }
 
+/// @brief Log a formatted message – Response.
+/// @param msg Content of the log.
+/// @param pid PID of the process.
 void log_resp(const int pid, const response_t * res) {
     tstamp(LOG_OUT);
 

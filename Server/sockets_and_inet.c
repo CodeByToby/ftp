@@ -9,6 +9,9 @@
 
 #include "sockets_and_inet.h"
 
+/// @brief Get, parse and copy the ip into a ipv4_addr_t struct variable.
+/// @param ip_out The ipv4_addr_t struct to be filled.
+/// @return 0 if succesfully parsed and copied, and -1 for errors.
 int ipv4_get(ipv4_addr_t * ip_out) {
     char host[256];
     struct addrinfo hints, * res;
@@ -43,6 +46,11 @@ int ipv4_get(ipv4_addr_t * ip_out) {
     return 0;
 }
 
+/// @brief Randomly generate a port and copy it into `port` and `port_str`.
+/// @param port The port_t struct to be filled.
+/// @param port_str The string to be filled.
+/// @param len Length of `port_str`.
+/// @return Always 0.
 int port_get(port_t * port, char * port_str, size_t len) {
     // Values between 1024 and 65535
     int pmin = 1024, pmax = 65535;
@@ -56,12 +64,13 @@ int port_get(port_t * port, char * port_str, size_t len) {
     return 0;
 }
 
-
+/// @brief Create a socket.
+/// @param port Port number of the socket.
+/// @param secs Timeout of the socket in seconds.
+/// @return sockfd of the new socket, or -1 if socket could not be created.
 int socket_create(const char * port, const int secs) {
     int sockfd;
     struct addrinfo hints, * res, * p;
-
-    printf("port: %s\n", port);
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET; // IPv4
@@ -122,6 +131,10 @@ int socket_create(const char * port, const int secs) {
 }
 
 
+/// @brief Set a timeout option on the socket.
+/// @param sockfd The file descriptor of the socket.
+/// @param secs Timeout in seconds, -1 for no timeout.
+/// @return setsockopt return values.
 int set_timeout(const int sockfd, const int secs) {
     struct timeval tv;
     tv.tv_sec = secs;
@@ -130,6 +143,9 @@ int set_timeout(const int sockfd, const int secs) {
     return setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 }
 
+/// @brief Set a resuable address option on the socket.
+/// @param sockfd The file descriptor of the socket.
+/// @return setsockopt return values.
 int set_addrreuse(const int sockfd) {
     int yes = 1;
 

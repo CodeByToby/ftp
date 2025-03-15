@@ -15,6 +15,10 @@ static int generate_lockname(char * lockname, size_t lockname_size, const char *
     return snprintf(lockname, lockname_size, "/ftp-%s", username);
 }
 
+/// @brief Create a set of locks for each user within credentials file. Run `destroy_user_locks` after you're done!
+/// @param locks Where to save the locks.
+/// @param cap The connection cap per user.
+/// @return 0 if the locks have been successfully created, -1 for errors.
 int create_user_locks(user_lock_array_t * locks, int cap) {
     FILE *fp;
     int nUsers = 0;
@@ -62,6 +66,8 @@ int create_user_locks(user_lock_array_t * locks, int cap) {
     return 0;
 }
 
+/// @brief Destroy all of the user locks within `locks`.
+/// @param locks A set of all locks to be destroyed.
 void destroy_user_locks(user_lock_array_t * locks) {
     for (int i = 0; i < locks->size; ++i) {
         char lockname[BUFFER_SIZE];
@@ -75,6 +81,10 @@ void destroy_user_locks(user_lock_array_t * locks) {
     free(locks->arr);
 }
 
+/// @brief `sem_trywait` wrapper on a user-specific lock.
+/// @param locks Set of all locks.
+/// @param username Username for the lock.
+/// @return `sem_trywait` return values, or -1 if lock has not been found.
 int lock_trywait(const user_lock_array_t * locks, const char * username) {
     for(int i = 0; i < locks->size; ++i) {
         if(strncmp_size(locks->arr[i].username, username) == TRUE)
@@ -84,6 +94,9 @@ int lock_trywait(const user_lock_array_t * locks, const char * username) {
     return -1;
 }
 
+/// @brief `sem_post` wrapper on a user-specific lock.
+/// @param locks Set of all locks.
+/// @param username Username for the lock.
 void lock_post(const user_lock_array_t * locks, const char * username) {
     for(int i = 0; i < locks->size; ++i) {
         if(strncmp_size(locks->arr[i].username, username) == TRUE) {
@@ -95,6 +108,9 @@ void lock_post(const user_lock_array_t * locks, const char * username) {
     return;
 }
 
+/// @brief `sem_close` wrapper on a user-specific lock.
+/// @param locks Set of all locks.
+/// @param username Username for the lock.
 void lock_close(const user_lock_array_t * locks, const char * username) {
     for(int i = 0; i < locks->size; ++i) {
         if(strncmp_size(locks->arr[i].username, username) == TRUE) {
