@@ -65,7 +65,10 @@ int main(int argc, char** argv)
 
     // SERVER SESSION
 
-    log_info("Online", 0);
+    char online_logmsg[BUFFER_SIZE];
+    snprintf(online_logmsg, sizeof(online_logmsg), "Online on port %s", CONN_PORT);
+
+    log_info(online_logmsg, 0);
 
     int pgid; 
     int isFirstProcess = TRUE;
@@ -287,8 +290,30 @@ static int child_process_logic(int sockfd_accpt, user_lock_array_t * locks) {
 
         case PASV:
             log_comm("PASV", getpid(), &cmd);
-            ftp_pasv(&res, &session);
+            retval = ftp_pasv(&res, &session);
             
+            if (retval == 0) {
+                char logmsg[BUFFER_SIZE];
+                snprintf(logmsg, sizeof(logmsg), "Data connection online on port %s", CONN_PORT);
+
+                log_info(logmsg, getpid());
+            }
+
+            log_resp(getpid(), &res);
+            response_send(sockfd_accpt, &res);
+            break;
+
+        case PORT:
+            log_comm("PORT", getpid(), &cmd);
+            retval = ftp_port(&res, &cmd, &session);
+            
+            if (retval == 0) {
+                char logmsg[BUFFER_SIZE];
+                snprintf(logmsg, sizeof(logmsg), "Data connection online on port %s", CONN_PORT);
+
+                log_info(logmsg, getpid());
+            }
+
             log_resp(getpid(), &res);
             response_send(sockfd_accpt, &res);
             break;

@@ -741,5 +741,5 @@ int ftp_port(response_t * res, const command_t * cmd, user_session_t * session) 
 
     response_set(res, 502, "Command not yet implemented");
 
-    return 0;
+    return -1;
 }
