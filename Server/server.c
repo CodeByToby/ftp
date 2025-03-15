@@ -10,6 +10,8 @@
 #include <sys/socket.h> // socket setsockopt recv send
 #include <sys/wait.h> // wait
 
+#define IS_SERVER
+
 #include "../Common/packets.h"
 #include "../Common/command_types.h"
 #include "../Common/defines.h"

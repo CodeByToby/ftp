@@ -15,4 +15,16 @@ typedef struct response {
     char message[BUFFER_SIZE];
 } response_t;
 
+#ifdef IS_SERVER
+
+void response_set(response_t * res, const int code, const char * message);
+
+#endif
+
+#ifdef IS_CLIENT
+
+int command_set(command_t * cmd);
+
+#endif
+
 #endif

@@ -1,5 +1,5 @@
 #include <stdio.h> // printf fopen fclose fwrite fread opendir ferror feof
-#include <stdlib.h> // realpath NULL
+#include <stdlib.h> // exit realpath NULL
 #include <unistd.h> // getpid getcwd chdir access rmdir sleep
 #include <string.h> // strncpy memset strlen strtok
 #include <errno.h> // errno
@@ -19,12 +19,6 @@
 #include "commands.h"
 #include "log.h"
 #include "fpath.h"
-
-void response_set(response_t * res, const int code, const char * message) {
-    res->code = code;
-    strncpy(res->message, message, BUFFER_SIZE-1);
-    res->message[BUFFER_SIZE-1] = '\0';
-}
 
 static int stat_parse(const struct stat * fstat, const char * name, char * result) {
     char permissions[11];
